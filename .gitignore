@@ -1,0 +1,14 @@
+### CLion ###
+# CMake
+cmake-build-*/
+CMakeLists.txt
+
+# IntelliJ
+out/
+.idea/
+
+# exe
+*.exe
+
+# o
+*.o
