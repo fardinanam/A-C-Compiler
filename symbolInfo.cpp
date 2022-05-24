@@ -1,3 +1,4 @@
+#include<iostream>
 #include<string>
 
 class SymbolInfo {
@@ -12,31 +13,20 @@ public:
         this->next = NULL;
     }
 
-    void setName(std::string name) {
-        this->name = name;
-    }
+    void setName(std::string name) { this->name = name; }
 
-    void setType(std::string type) {
-        this->type = type;
-    }
+    void setType(std::string type) { this->type = type; }
 
-    void setNext(SymbolInfo *next) {
-        this->next = next;
-    }
+    void setNext(SymbolInfo *next) { this->next = next; }
 
-    std::string getName() const {
-        return name;
-    }
+    std::string getName() const { return name; }
 
-    std::string getType() const {
-        return type;
-    }
+    std::string getType() const { return type; }
 
-    SymbolInfo *getNext() const {
-        return next;
-    }
+    SymbolInfo *getNext() const { return next; }
 
     ~SymbolInfo() {
+//        std::cout << name << " symbol's destructor called" << std::endl;
         delete next;
     }
 };

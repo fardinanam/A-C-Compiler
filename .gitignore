@@ -7,6 +7,10 @@ CMakeLists.txt
 out/
 .idea/
 
+# VS Code
+.vscode/
+tempCodeRunnerFile.cpp
+
 # exe
 *.exe
 
