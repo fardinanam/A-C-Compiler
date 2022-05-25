@@ -23,10 +23,5 @@ public:
 
     std::string getType() const { return type; }
 
-    SymbolInfo *getNext() const { return next; }
-
-    ~SymbolInfo() {
-//        std::cout << name << " symbol's destructor called" << std::endl;
-        delete next;
-    }
+    SymbolInfo* getNext() const { return next; }
 };

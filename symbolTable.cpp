@@ -1,5 +1,4 @@
 #include "scopeTable.cpp"
-#include <utility>
 #include<vector>
 
 class SymbolTable {
@@ -23,10 +22,10 @@ public:
 
     void exitScope() {
         std::string currentScopeId = currentScopeTable->getId();
+        
         if(currentScopeTable != rootScopeTable) {
             ScopeTable* previousScopeTable = currentScopeTable;
             currentScopeTable = currentScopeTable->getParentScope();
-            std::cout << "Current Scope: " << currentScopeTable->getId() << std::endl;
             delete previousScopeTable;
             std::cout << "ScopeTable with id " << currentScopeId << " removed\n";
         }
@@ -45,10 +44,11 @@ public:
         SymbolInfo* symbolInfo = NULL;
 
         while (scope != NULL) {
-
             symbolInfo = scope->lookUp(symbolName);
+
             if(symbolInfo != NULL)
                 return symbolInfo;
+
             scope = scope->getParentScope();
         }
 
@@ -69,9 +69,10 @@ public:
 
     ~SymbolTable() {
         ScopeTable* scopeTable = currentScopeTable;
-        while (currentScopeTable != NULL) {
+        while (scopeTable != NULL) {
             currentScopeTable = scopeTable->getParentScope();
             delete scopeTable;
+            scopeTable = currentScopeTable;
         }
     }
 };
@@ -84,7 +85,6 @@ int main() {
     std::string type;
 
     std::cin >> n;
-//    std::cout << "Size " << n << std::endl;
     SymbolTable symbolTable(n);
 
     while (!feof(stdin)) {
