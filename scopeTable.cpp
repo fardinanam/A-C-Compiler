@@ -2,6 +2,11 @@
 #include<iostream>
 #include<string>
 
+/**
+ * Contains array of pointers to SymbolInfo objects as a
+ * hash table. parentScope pointer points to the scope that
+ * this ScopeTable object is a child of.
+ */
 class ScopeTable {
 private:
     int size;
@@ -10,7 +15,12 @@ private:
     ScopeTable *parentScope;
     std::string id;
 
-    unsigned long sdbmhash(std::string name) {
+    /**
+     * Hash function associated with the hashTable.
+     * @param name of the symbol
+     * @return hashed value corresponding to the name string.
+     */
+    static unsigned long sdbmhash(std::string name) {
         unsigned long hash = 0;
 
         for (int i = 0; i < name.length(); i++) {
@@ -22,10 +32,14 @@ private:
     }
 
 public:
+    /**
+     * Initializes the ScopeTable object with no ID.
+     * Allocates NULL to the parentScope.
+     * @param size of the hashTable
+     */
     ScopeTable(int size) {
         this->size = size;
         this->totalChildren = 0;
-        this->id = "1";
         hashTable = new SymbolInfo*[size];
 
         for(int i = 0; i < size; i++)
@@ -34,6 +48,23 @@ public:
         parentScope = NULL;
     }
 
+    /**
+     * Allocates NULL to the parentScope.
+     * @param size of the hashTable
+     * @param id of the ScopeTable object
+     */
+    ScopeTable(int size, std::string id) : ScopeTable(size) {
+        this->id = id;
+    }
+
+    /**
+     * Allocates ID based on the parent ID.
+     * example: If the ID of the parent is 1.1 and has 2 existing children then
+     * the ID of this object will be 1.1.3
+     * This also increases the number of children of the parent scope.
+     * @param size of the hashTable
+     * @param parentScope of this ScopeTable
+     */
     ScopeTable(int size, ScopeTable *parentScope) : ScopeTable(size) {
         this->parentScope = parentScope;
         int subId = ++this->parentScope->totalChildren;
@@ -41,6 +72,13 @@ public:
         id = parentScope->id + '.' + std::to_string(subId);
     }
 
+    /**
+     * Creates a new SymbolInfo object and inserts it into the hashTable
+     * if no symbol corresponding to the name already exists in the table.
+     * @param name of the symbol
+     * @param type of the symbol
+     * @return true if insertion is successful or false if unsuccessful.
+     */
     bool insert(std::string name, std::string type) {
         SymbolInfo* symbolInfo = new SymbolInfo(name, type);
         int hashtableIndex = sdbmhash(symbolInfo->getName()) % size;
@@ -74,6 +112,11 @@ public:
         return true;
     }
 
+    /**
+     * Searches for the symbol with the name that matches symbolName parameter.
+     * @param symbolName name of the symbol
+     * @return true if the hashTable contains a symbol with symbolName or false, if not found.
+     */
     SymbolInfo* lookUp(std::string symbolName) {
         int hashTableIndex = sdbmhash(symbolName) % size;
         int linkedListIndex = 0;
@@ -93,10 +136,14 @@ public:
             }
         }
 
-//        std::cout << "Not found\n";
         return NULL;
     }
 
+    /**
+     * Removes the symbol with the name that matches symbolName parameter.
+     * @param symbolName name of the symbol.
+     * @return true if removal is successful or false if unsuccessful.
+     */
     bool remove(std::string symbolName) {
         int hashTableIndex = sdbmhash(symbolName) % size;
         int linkedListIndex = 0;
@@ -111,7 +158,7 @@ public:
                 current->setNext(NULL);
                 std::cout << "Found in ScopeTable # " << id << " at position "
                           << hashTableIndex << ", " << linkedListIndex << '\n';
-                std::cout << "Deleted Entry" << hashTableIndex << ", " << linkedListIndex
+                std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
                           << " from current ScopeTable\n";
                 return true;
             }
@@ -133,10 +180,12 @@ public:
             }    
         }
 
-//        std::cout << "Not found\n";
         return false;
     }
 
+    /**
+     * Prints the < symbolName : symbolType > of every symbol in this scope.
+     */
     void print() {
         std::cout << "ScopeTable # " << id << '\n';
         for(int i = 0; i < size; i++) {
@@ -152,10 +201,6 @@ public:
         }
     }
 
-    // void setId(const std::string id) {
-    //     this->id = id;
-    // }
-
     ScopeTable *getParentScope() const {
         return parentScope;
     }
@@ -166,7 +211,7 @@ public:
 
     ~ScopeTable()
     {
-        for(int i = 0; i<size; i++) 
+        for(int i = 0; i<size; i++)
             delete hashTable[i];
             
         delete[] hashTable;
