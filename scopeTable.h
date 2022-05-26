@@ -1,6 +1,4 @@
-#include "symbolInfo.cpp"
-#include<iostream>
-#include<string>
+#include "symbolInfo.h"
 
 /**
  * Contains array of pointers to SymbolInfo objects as a
