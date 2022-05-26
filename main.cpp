@@ -45,6 +45,7 @@ int main() {
                 break;
             case 'S':
                 symbolTable.enterScope();
+                std::cout << "New ScopeTable with id " << symbolTable.getCurrentScopeID() << " created\n";
                 break;
             case 'E':
                 symbolTable.exitScope();
@@ -56,5 +57,6 @@ int main() {
         std::cout << '\n';
     }
 
+    fclose(stdin);
     return 0;
 }

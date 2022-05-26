@@ -1,4 +1,5 @@
-#pragma once
+#ifndef COMPILER_SYMBOL_INFO_H
+#define COMPILER_SYMBOL_INFO_H
 
 #include<iostream>
 #include<string>
@@ -37,17 +38,9 @@ public:
 
     SymbolInfo* getNext() const { return next; }
 
-    /**
-     * Recursively frees all the next SymbolInfo  
-     */
-    void freeNexts() {
-        if(next == NULL) return;
-
-        next->freeNexts();
-        delete next;
-    }
-
     ~SymbolInfo() {
         // Nothing to free
     }
 };
+
+#endif

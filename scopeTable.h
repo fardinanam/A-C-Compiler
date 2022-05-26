@@ -1,3 +1,6 @@
+#ifndef COMPILER_SCOPE_TABLE_H
+#define COMPILER_SCOPE_TABLE_H
+
 #include "symbolInfo.h"
 
 /**
@@ -38,6 +41,7 @@ public:
     ScopeTable(int size) {
         this->size = size;
         this->totalChildren = 0;
+        this->id = "1";
         hashTable = new SymbolInfo*[size];
 
         for(int i = 0; i < size; i++)
@@ -221,11 +225,16 @@ public:
     {
         for(int i = 0; i<size; i++) {
             if(hashTable[i] != NULL) {
-                hashTable[i]->freeNexts();
-                delete hashTable[i];
+                while(hashTable[i] != NULL) {
+                    SymbolInfo* tempSymbolInfo = hashTable[i]->getNext();
+                    delete hashTable[i];
+                    hashTable[i] = tempSymbolInfo;
+                }
             }
         }
             
         delete[] hashTable;
     }
 };
+
+#endif

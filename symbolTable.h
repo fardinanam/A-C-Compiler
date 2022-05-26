@@ -1,4 +1,5 @@
-#pragma once
+#ifndef COMPILER_SYMBOL_TABLE_H
+#define COMPILER_SYMBOL_TABLE_H
 
 #include "scopeTable.h"
 
@@ -10,7 +11,6 @@
 class SymbolTable {
 private:
     int sizeOfScopeTables;
-    int countRootScopes;
     ScopeTable* rootScopeTable;
     ScopeTable* currentScopeTable;
 
@@ -23,8 +23,7 @@ public:
      */
     SymbolTable(int sizeOfScopeTables) {
         this->sizeOfScopeTables = sizeOfScopeTables;
-        countRootScopes = 1;
-        rootScopeTable = new ScopeTable(sizeOfScopeTables, std::to_string(countRootScopes));
+        rootScopeTable = new ScopeTable(sizeOfScopeTables);
         currentScopeTable = rootScopeTable;
     }
 
@@ -34,15 +33,11 @@ public:
      */
     void enterScope() {
         if(rootScopeTable == NULL) {
-            // std::cout << "Creating rootScope\n";
-            countRootScopes++;
-            rootScopeTable = new ScopeTable(sizeOfScopeTables, std::to_string(countRootScopes));
+            rootScopeTable = new ScopeTable(sizeOfScopeTables);
             currentScopeTable = rootScopeTable;
         } else {
             currentScopeTable = new ScopeTable(sizeOfScopeTables, currentScopeTable);
         }
-
-        std::cout << "New ScopeTable with id " << currentScopeTable->getId() << " created\n";
     }
 
     /**
@@ -77,8 +72,7 @@ public:
      */
     bool insert(std::string name, std::string type) {
         if(currentScopeTable == NULL) {
-            std::cout << "NO CURRENT SCOPE\n";
-            return false;
+            enterScope();
         }
 
         return currentScopeTable->insert(name, type);
@@ -150,6 +144,13 @@ public:
         }
     }
 
+    std::string getCurrentScopeID() {
+        if(currentScopeTable != NULL)
+            return currentScopeTable->getId();
+        
+        return "NO CURRENT SCOPE";
+    }
+
     ~SymbolTable() {
         ScopeTable* scopeTable = currentScopeTable;
         while (scopeTable != NULL) {
@@ -159,3 +160,5 @@ public:
         }
     }
 };
+
+#endif
