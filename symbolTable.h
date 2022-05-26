@@ -1,3 +1,5 @@
+#pragma once
+
 #include "scopeTable.h"
 
 /**
@@ -93,6 +95,7 @@ public:
             std::cout << "NO CURRENT SCOPE\n";
             return false;
         }
+        
         return currentScopeTable->remove(symbolName);
     }
 

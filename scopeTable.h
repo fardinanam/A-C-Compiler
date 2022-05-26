@@ -18,8 +18,8 @@ private:
      * @param name of the symbol
      * @return hashed value corresponding to the name string.
      */
-    static unsigned long sdbmhash(std::string name) {
-        unsigned long hash = 0;
+    static int32_t sdbmhash(std::string name) {
+        int32_t hash = 0;
 
         for (int i = 0; i < name.length(); i++) {
             int c = name[i];
@@ -78,30 +78,36 @@ public:
      * @return true if insertion is successful or false if unsuccessful.
      */
     bool insert(std::string name, std::string type) {
-        SymbolInfo* symbolInfo = new SymbolInfo(name, type);
-        int hashtableIndex = sdbmhash(symbolInfo->getName()) % size;
+        int hashtableIndex = sdbmhash(name) % size;
         int linkedListIndex = 0;
         SymbolInfo* current = hashTable[hashtableIndex];
 
         if(current == NULL) {
-            hashTable[hashtableIndex] = symbolInfo;
-        } else if(symbolInfo->getName() == current->getName()) {
+            hashTable[hashtableIndex] = new SymbolInfo(name, type);
+        } else if(name == current->getName()) {
             std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
             return false;
         } else {
-            SymbolInfo *next = current->getNext();
+            SymbolInfo* next = current->getNext();
 
             while (next != NULL) {
-                if(symbolInfo->getName() == current->getName()) {
+                if(name == current->getName()) {
                     std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
                     return false;
                 }
+                
                 current = next;
                 next = current->getNext();
                 linkedListIndex++;
             }
 
-            current->setNext(symbolInfo);
+            // Check the last element
+            if(name == current->getName()) {
+                std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+                return false;
+            }
+            
+            current->setNext(new SymbolInfo(name, type));
             linkedListIndex++;
         }
 
@@ -153,11 +159,13 @@ public:
             // Checks the first element of the table at hashTableIndex
             if (current->getName() == symbolName) {
                 hashTable[hashTableIndex] = next;
-                current->setNext(NULL);
+                
                 std::cout << "Found in ScopeTable # " << id << " at position "
                           << hashTableIndex << ", " << linkedListIndex << '\n';
                 std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
                           << " from current ScopeTable\n";
+                
+                delete current;
                 return true;
             }
 
@@ -169,11 +177,13 @@ public:
 
             if (next->getName() == symbolName) {
                 current->setNext(next->getNext());
-                next->setNext(NULL);
+                
                 std::cout << "Found in ScopeTable # " << id << " at position "
                           << hashTableIndex << ", " << linkedListIndex << '\n';
                 std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
                           << " from current ScopeTable\n";
+    
+                delete next;
                 return true;
             }    
         }
@@ -209,8 +219,12 @@ public:
 
     ~ScopeTable()
     {
-        for(int i = 0; i<size; i++)
-            delete hashTable[i];
+        for(int i = 0; i<size; i++) {
+            if(hashTable[i] != NULL) {
+                hashTable[i]->freeNexts();
+                delete hashTable[i];
+            }
+        }
             
         delete[] hashTable;
     }

@@ -16,3 +16,9 @@ tempCodeRunnerFile.cpp
 
 # o
 *.o
+
+# valgind
+valgrind-*
+
+# linux
+main

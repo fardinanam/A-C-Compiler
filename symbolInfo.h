@@ -1,3 +1,5 @@
+#pragma once
+
 #include<iostream>
 #include<string>
 
@@ -34,4 +36,18 @@ public:
     std::string getType() const { return type; }
 
     SymbolInfo* getNext() const { return next; }
+
+    /**
+     * Recursively frees all the next SymbolInfo  
+     */
+    void freeNexts() {
+        if(next == NULL) return;
+
+        next->freeNexts();
+        delete next;
+    }
+
+    ~SymbolInfo() {
+        // Nothing to free
+    }
 };
