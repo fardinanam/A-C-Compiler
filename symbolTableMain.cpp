@@ -1,7 +1,7 @@
 #include "symbolTable.h"
 
 int main() {
-    freopen("input.txt", "r", stdin);
+    freopen("symbolTableInput.txt", "r", stdin);
     int n;
     char c;
     std::string name;

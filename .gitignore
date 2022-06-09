@@ -22,3 +22,13 @@ valgrind-*
 
 # linux
 main
+
+# flex
+lex.yy.*
+
+# binary file
+*.out
+
+# output text file
+*log.txt
+*token.txt

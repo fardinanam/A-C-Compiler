@@ -46,21 +46,22 @@ public:
      * the deleted scope.
      */
     void exitScope() {
-        if(currentScopeTable != NULL) {
-            std::string currentScopeId = currentScopeTable->getId();
+        if(currentScopeTable != NULL && currentScopeTable != rootScopeTable) {
+            // std::string currentScopeId = currentScopeTable->getId();
             ScopeTable* previousScopeTable = currentScopeTable;
             currentScopeTable = currentScopeTable->getParentScope();
 
-            std::cout << "ScopeTable with id " << currentScopeId << " removed\n";
-            if(previousScopeTable == rootScopeTable) {
-                // std::cout << "Destroying the first ScopeTable\n";
-                rootScopeTable = NULL;
-            }
+            // std::cout << "ScopeTable with id " << currentScopeId << " removed\n";
+            // if(previousScopeTable == rootScopeTable) {
+            //     // std::cout << "Destroying the first ScopeTable\n";
+            //     rootScopeTable = NULL;
+            // }
 
             delete previousScopeTable;
-        } else {
-            std::cout << "NO CURRENT SCOPE\n";
-        }
+        } 
+        // else {
+        //     // std::cout << "NO CURRENT SCOPE\n";
+        // }
     }
 
     /**
@@ -86,7 +87,7 @@ public:
      */
     bool remove(std::string symbolName) {
         if (currentScopeTable == NULL) {
-            std::cout << "NO CURRENT SCOPE\n";
+            // std::cout << "NO CURRENT SCOPE\n";
             return false;
         }
         
@@ -135,13 +136,25 @@ public:
     void printAllScopeTable() {
         ScopeTable* scopeTable = currentScopeTable;
         if(scopeTable == NULL) {
-            std::cout << "NO CURRENT SCOPE\n";
+            // std::cout << "NO CURRENT SCOPE\n";
         }
 
         while (scopeTable != NULL) {
             scopeTable->print();
             scopeTable = scopeTable->getParentScope();
         }
+    }
+
+    std::string getNonEmptyList() {
+        ScopeTable* scopeTable = currentScopeTable;
+        std::string temp = "";
+
+        while (scopeTable != NULL) {
+            temp += scopeTable->getNonEmptyBuckets() + '\n';
+            scopeTable = scopeTable->getParentScope();
+        }
+
+        return temp;
     }
 
     std::string getCurrentScopeID() {

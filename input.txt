@@ -1,25 +1,30 @@
-7
-I foo FUNCTION
-I i VAR
-L foo
-L j
-I 5 NUMBER
-P A
-D j
-D i
-P A
-S
-I <= RELOP
-I == RELOP
-P A
-I <= RELOP
-I foo FUNCTION
-D ==
-P A
-E
-I t t
-I k k
-P A
-E
-E
-I A A
+int main(){
+	int a,b,12abcd,abdc1,_12abcd;
+	`
+	ch='\t';
+	a = 5;
+	b = a * 3.5140;
+	b = 1.51.40;
+	b = 1E10.7;
+	a=a+1;
+	char ch ='a';
+	ch = 'ab';
+	ch = 'a;
+	char ch = "hello;
+	ch='\t';
+	char c[]="ab\td";
+	printf("abc\
+	def\
+	ghi");
+	// a comment
+
+
+	/** another
+	*** multi line 
+	//inserted
+	comment ***/
+
+
+	return 0;
+	/* unfinished
+	}

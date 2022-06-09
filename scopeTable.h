@@ -21,8 +21,8 @@ private:
      * @param name of the symbol
      * @return hashed value corresponding to the name string.
      */
-    static int32_t sdbmhash(std::string name) {
-        int32_t hash = 0;
+    static uint32_t sdbmhash(std::string name) {
+        uint32_t hash = 0;
 
         for (int i = 0; i < name.length(); i++) {
             int c = name[i];
@@ -34,7 +34,7 @@ private:
 
 public:
     /**
-     * Initializes the ScopeTable object with no ID.
+     * Initializes the ScopeTable object with ID = 1.
      * Allocates NULL to the parentScope.
      * @param size of the hashTable
      */
@@ -89,14 +89,14 @@ public:
         if(current == NULL) {
             hashTable[hashtableIndex] = new SymbolInfo(name, type);
         } else if(name == current->getName()) {
-            std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+            // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
             return false;
         } else {
             SymbolInfo* next = current->getNext();
 
             while (next != NULL) {
                 if(name == current->getName()) {
-                    std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+                    // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
                     return false;
                 }
                 
@@ -107,7 +107,7 @@ public:
 
             // Check the last element
             if(name == current->getName()) {
-                std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+                // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
                 return false;
             }
             
@@ -115,8 +115,8 @@ public:
             linkedListIndex++;
         }
 
-        std::cout << "Inserted in ScopeTable # " << id
-                  << " at position " << hashtableIndex << ", " << linkedListIndex << '\n';
+        // std::cout << "Inserted in ScopeTable # " << id
+        //           << " at position " << hashtableIndex << ", " << linkedListIndex << '\n';
         return true;
     }
 
@@ -134,8 +134,8 @@ public:
 
             while (current != NULL) {
                 if(symbolName == current->getName()) {
-                    std::cout << "Found in ScopeTable # " << id
-                              << " at position " << hashTableIndex << ", " << linkedListIndex << '\n';
+                    // std::cout << "Found in ScopeTable # " << id
+                    //           << " at position " << hashTableIndex << ", " << linkedListIndex << '\n';
                     return current;
                 }
                     
@@ -164,10 +164,10 @@ public:
             if (current->getName() == symbolName) {
                 hashTable[hashTableIndex] = next;
                 
-                std::cout << "Found in ScopeTable # " << id << " at position "
-                          << hashTableIndex << ", " << linkedListIndex << '\n';
-                std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
-                          << " from current ScopeTable\n";
+                // std::cout << "Found in ScopeTable # " << id << " at position "
+                //           << hashTableIndex << ", " << linkedListIndex << '\n';
+                // std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
+                //           << " from current ScopeTable\n";
                 
                 delete current;
                 return true;
@@ -182,10 +182,10 @@ public:
             if (next->getName() == symbolName) {
                 current->setNext(next->getNext());
                 
-                std::cout << "Found in ScopeTable # " << id << " at position "
-                          << hashTableIndex << ", " << linkedListIndex << '\n';
-                std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
-                          << " from current ScopeTable\n";
+                // std::cout << "Found in ScopeTable # " << id << " at position "
+                //           << hashTableIndex << ", " << linkedListIndex << '\n';
+                // std::cout << "Deleted Entry " << hashTableIndex << ", " << linkedListIndex
+                //           << " from current ScopeTable\n";
     
                 delete next;
                 return true;
@@ -211,6 +211,25 @@ public:
 
             std::cout << '\n';
         }
+    }
+
+    std::string getNonEmptyBuckets() {
+        std::string temp = "ScopeTable # " + id + "\n";
+        for(int i = 0; i < size; i++) {
+            if(hashTable[i] != NULL) {
+                temp += " " + std::to_string(i) + " --> ";
+
+                SymbolInfo *next = hashTable[i];
+                while(next != NULL) {
+                    temp += "< " + next->getName() + " : " + next->getType() + "> ";
+                    next = next->getNext();
+                }
+
+                temp += '\n';
+            }
+        }
+
+        return temp;
     }
 
     ScopeTable *getParentScope() const {
