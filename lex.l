@@ -144,6 +144,9 @@ char extractChar(string str) {
 DIGIT [0-9]
 LETTER [a-zA-Z]
 NEWLINE \n|\r\n
+INT {DIGIT}+
+FLOAT ({INT}|("."{INT})?|{INT}"."{INT})([eE][+-]?{INT})?
+ID [a-zA-Z_][a-zA-Z0-9_]*
 
 %%
 
@@ -152,32 +155,35 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     logFoundMessage(token, yytext);
     writeTokenFile(token);
 }
-{DIGIT}+{LETTER}+ {
-    logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
-}
-{DIGIT}*"."({DIGIT}*"."{DIGIT}*)+ {
-    logErrorMessage("Too many decimal point for the character sequence", yytext);
-}
-{DIGIT}+"."?[Ee]({DIGIT}*"."{DIGIT}*)* {
-    logErrorMessage("Ill formed number", yytext);
-}
-[a-zA-Z_][a-zA-Z0-9_]* {
+{ID} {
     string token = "ID";
     logFoundMessage(token, yytext);
     writeTokenFile(token, yytext);
     insertSymbol(token, yytext);
 }
-{DIGIT}+ {
+{INT} {
     string token = "CONST_INT";
     logFoundMessage(token, yytext);
     writeTokenFile(token, yytext);
     insertSymbol(token, yytext);
 }
-{DIGIT}*("."{DIGIT}+)?([eE][+-]?{DIGIT}+)? {
+{FLOAT} {
     string token = "CONST_FLOAT";
     logFoundMessage(token, yytext);
     writeTokenFile(token, yytext);
     insertSymbol(token, yytext);
+}
+{FLOAT}{ID}+ {
+    logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
+}
+{DIGIT}*"."({DIGIT}*([eE][+-]?)?{DIGIT}*"."{DIGIT}*)+ {
+    logErrorMessage("Too many decimal point for the character sequence", yytext);
+}
+({INT}?"."[Ee][+-]?{DIGIT}*)|({INT}[eE]{INT}?"."{INT}) {
+    logErrorMessage("Ill formed number", yytext);
+}
+{INT}"." {
+    logErrorMessage("Unfinished number", yytext);
 }
 
 [+-] {
