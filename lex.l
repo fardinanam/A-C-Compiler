@@ -10,19 +10,21 @@
 #include<iostream>
 #include<fstream>
 #include<string>
+#include "symbolTable.h"
 
 using namespace std;
 
 int lineCount = 1;
 int errorCount = 0;
 int tempLineNo;
-string str;
-string temp;
+
+string charLiteral;
+string lexeme;
 
 ofstream logFile;
 ofstream tokenFile;
 
-#include "symbolTable.h"
+
 SymbolTable symbolTable(7);
 
 string toUpper(string str) {
@@ -130,7 +132,7 @@ char extractChar(string str) {
                 c = '\0';
                 break;
             default:
-                logErrorMessage("Unknown escape sequence: ", str);
+                return -1;
         } 
     } else {
         c = str[0];
@@ -265,55 +267,68 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 }
 
 ' {
-    str = "";
+    lexeme = yytext;
+    charLiteral = "";
     BEGIN CHAR_STATE;
 }
 
 <CHAR_STATE>' {
-    if(str.length() == 0) {
-        str = "'" + str + "'";
-        logErrorMessage("Empty character constant", str);
-        str.clear();
+    lexeme += yytext;
+
+    if(charLiteral.length() == 0) {    
+        logErrorMessage("Empty character constant", lexeme);
+        lexeme.clear();
+        charLiteral.clear();
         BEGIN INITIAL;
-    } else if(str.length() == 1 && str[0] == '\\') {
-        str += yytext;
-    } else if((str[0] == '\\' && str.length() == 2) || str.length() == 1) {
-        string token = "CONST_CHAR";
-        temp.push_back(extractChar(str));
-        str = "'" + str + "'";
+    } else if(charLiteral.length() == 1 && charLiteral[0] == '\\') {
+        charLiteral += yytext;
+    } else if((charLiteral[0] == '\\' && charLiteral.length() == 2) || charLiteral.length() == 1) {
+        char c = extractChar(charLiteral);
 
-        writeTokenFile(token, temp);
-        logFoundMessage(token, str, temp);
-        insertSymbol(token, str);
-
-        temp.clear();
-        str.clear();
+        if(c == -1) {
+            logErrorMessage("Unknown escape sequence: ", lexeme);
+        } else {
+            string token = "CONST_CHAR";
+            charLiteral = "";
+            charLiteral.push_back(c);
+            
+            writeTokenFile(token, charLiteral);
+            logFoundMessage(token, lexeme, charLiteral);
+            insertSymbol(token, lexeme);
+        }
+        
+        lexeme.clear();
+        charLiteral.clear();
 
         BEGIN INITIAL;
-    } else if(str.length() > 1) {
-        str = "'" + str + "'";
-        logErrorMessage("Multi character constant char", str);
-        str.clear();
+    } else if(charLiteral.length() > 1) {
+        logErrorMessage("Multi character constant char", lexeme);
+        
+        lexeme.clear();
+        charLiteral.clear();
+
         BEGIN INITIAL;
     }
 }
 
 <CHAR_STATE>[^\r\n] {
-    str += yytext;
+    lexeme += yytext;
+    charLiteral += yytext;
 }
 
 <CHAR_STATE>{NEWLINE} {
+    logErrorMessage("Unfinished character", lexeme);
     lineCount++;
-    str = "'" + str;
-    logErrorMessage("Unfinished character", str);
-    str.clear();
+    lexeme.clear();
+    charLiteral.clear();
+
     BEGIN INITIAL;
 }
 
 <CHAR_STATE><<EOF>> {
-    str = "'" + str;
-    logErrorMessage("Unfinished character", str);
-    str.clear();
+    logErrorMessage("Unfinished character", lexeme);
+    lexeme.clear();
+    charLiteral.clear();
     printSummary();
     return 0;
 }
@@ -321,51 +336,51 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 \" {
     tempLineNo = lineCount;
-    str = "";
-    temp = yytext;
+    charLiteral = "";
+    lexeme = yytext;
     BEGIN STRING_STATE;
 }
 <STRING_STATE>[^\r\n\"] {
-    str += yytext;
-    temp += yytext;
+    charLiteral += yytext;
+    lexeme += yytext;
 }
 <STRING_STATE>\\[nt\\'afrbv0"] {
-    temp += yytext;
-    str.push_back(extractChar(yytext));
+    lexeme += yytext;
+    charLiteral.push_back(extractChar(yytext));
 }
-<STRING_STATE>\\\n {
+<STRING_STATE>\\\n[ \t\r] {
     lineCount++;
-    temp += yytext;
+    lexeme += yytext;
 }
 
 <STRING_STATE>\" {
     string token = "STRING";
-    temp += yytext;
+    lexeme += yytext;
     
-    str = "\"" + str + "\"";
-    writeTokenFile(token, str);
-    logFoundMessage(token, temp, str, tempLineNo);
+    charLiteral = "\"" + charLiteral + "\"";
+    writeTokenFile(token, charLiteral);
+    logFoundMessage(token, lexeme, charLiteral, tempLineNo);
     
-    str.clear();
-    temp.clear();
-    str.clear();
+    charLiteral.clear();
+    lexeme.clear();
+    charLiteral.clear();
     BEGIN INITIAL;
 }
 
 <STRING_STATE>{NEWLINE} {
-    temp += yytext;
-    logErrorMessage("Unterminated string", temp, tempLineNo);
+    lexeme += yytext;
+    logErrorMessage("Unterminated string", lexeme, tempLineNo);
     lineCount++;
-    temp.clear();
-    str.clear();
+    lexeme.clear();
+    charLiteral.clear();
     BEGIN INITIAL;
 }
 
 <STRING_STATE><<EOF>> {
-    logErrorMessage("Unterminated string", temp, tempLineNo);
+    logErrorMessage("Unterminated string", lexeme, tempLineNo);
     printSummary();
-    temp.clear();
-    str.clear();
+    lexeme.clear();
+    charLiteral.clear();
     return 0;
 }
 
@@ -375,45 +390,45 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     tempLineNo = lineCount;
     lineCount++;
     BEGIN MLINE_COMMENT_STATE1;
-    temp = yytext;
+    lexeme = yytext;
 }
 
 <MLINE_COMMENT_STATE1>[^\r\n]*\\[ \t]*{NEWLINE} {
     lineCount++;
-    temp += yytext;
+    lexeme += yytext;
 }
 
 <MLINE_COMMENT_STATE1>[^\r\n]* {
-    temp += yytext;
-    logFoundMessage("COMMENT", temp, tempLineNo);
-    temp.clear();
+    lexeme += yytext;
+    logFoundMessage("COMMENT", lexeme, tempLineNo);
+    lexeme.clear();
     BEGIN INITIAL;
 }
 
 "/*" {
     tempLineNo = lineCount;
-    str = yytext;
+    lexeme = yytext;
     BEGIN MLINE_COMMENT_STATE2;
 }
 
 <MLINE_COMMENT_STATE2>"*/"[ \t]* {
-    str += "*/";
-    logFoundMessage("COMMENT", str, tempLineNo);
-    str.clear();
+    lexeme += "*/";
+    logFoundMessage("COMMENT", lexeme, tempLineNo);
+    lexeme.clear();
     BEGIN INITIAL;
 }
 
 <MLINE_COMMENT_STATE2>[^\r\n] {
-    str += yytext;
+    lexeme += yytext;
 }
 
 <MLINE_COMMENT_STATE2>{NEWLINE} {
     lineCount++;
-    str += yytext;
+    lexeme += yytext;
 }
 
 <MLINE_COMMENT_STATE2><<EOF>> {
-    logErrorMessage("Unterminated comment", str, tempLineNo);
+    logErrorMessage("Unterminated comment", lexeme, tempLineNo);
     printSummary();
     return 0;
 }
@@ -425,7 +440,8 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 [^ \t\n] {logErrorMessage("Unrecongnized character", yytext);}
 [ \t\f\r\v]+ {}
-\n lineCount++;
+{NEWLINE} lineCount++;
+
 %%
 
 int main(int argc, char* argv[]) {
