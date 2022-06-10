@@ -36,14 +36,6 @@ string toUpper(string str) {
             tempStr.push_back(c);
         
     }
-    // while(*str) {
-    //     char c = *tempStr;
-
-    //     if(c >= 'a' && c <= 'z')
-    //         *tempStr = c - 'a' + 'A';
-        
-    //     tempStr++;
-    // }
 
     return tempStr;
 }
@@ -52,8 +44,18 @@ void logFoundMessage(string token, string lexeme) {
     logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
 }
 
+void logFoundMessage(string token, string lexeme, string charLiteral) {
+    logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " 
+        << lexeme << " found --> <" << token << ", " << charLiteral << ">\n\n";
+}
+
 void logFoundMessage(string token, string lexeme, int lineNo) {
     logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
+}
+
+void logFoundMessage(string token, string lexeme, string charLiterals, int lineNo) {
+    logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " 
+        << lexeme << " found --> <" << token << ", " << charLiterals << ">\n\n";
 }
 
 void logErrorMessage(string errorMessage, string symbol) {
@@ -275,7 +277,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
         str = "'" + str + "'";
 
         writeTokenFile(token, temp);
-        logFoundMessage(token, str);
+        logFoundMessage(token, str, temp);
         insertSymbol(token, str);
 
         temp.clear();
@@ -333,9 +335,11 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 <STRING_STATE>\" {
     string token = "STRING";
     temp += yytext;
-    logFoundMessage(token, temp, tempLineNo);
+    
     str = "\"" + str + "\"";
     writeTokenFile(token, str);
+    logFoundMessage(token, temp, str, tempLineNo);
+    
     str.clear();
     temp.clear();
     str.clear();

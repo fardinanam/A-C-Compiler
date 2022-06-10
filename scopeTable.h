@@ -213,6 +213,10 @@ public:
         }
     }
 
+    /**
+     * @returns the non empty buckets of symbols < symbolName : symbolType > in
+     * the form of string.
+     */
     std::string getNonEmptyBuckets() {
         std::string temp = "ScopeTable # " + id + "\n";
         for(int i = 0; i < size; i++) {

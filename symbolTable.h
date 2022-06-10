@@ -145,6 +145,10 @@ public:
         }
     }
 
+    /**
+     * @returns The non empty symbols < symbolName : symbolType > of all the scopes
+     * in the form of a string.
+     */
     std::string getNonEmptyList() {
         ScopeTable* scopeTable = currentScopeTable;
         std::string temp = "";
