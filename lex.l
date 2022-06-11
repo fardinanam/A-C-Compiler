@@ -74,8 +74,8 @@ void writeTokenFile(string token) {
     tokenFile << "<" << token << "> ";
 }
 
-void writeTokenFile(string token, string lexeme) {
-    tokenFile << "<" << token << ", " << lexeme << "> ";
+void writeTokenFile(string token, string charLiteral) {
+    tokenFile << "<" << token << ", " << charLiteral << "> ";
 }
 
 void insertSymbol(string token, string lexeme) {
@@ -131,6 +131,9 @@ char extractChar(string str) {
             case '0':
                 c = '\0';
                 break;
+            case '"':
+                c = '\"';
+                break;
             default:
                 return -1;
         } 
@@ -147,7 +150,7 @@ DIGIT [0-9]
 LETTER [a-zA-Z]
 NEWLINE \n|\r\n
 INT {DIGIT}+
-FLOAT ({INT}|("."{INT})?|{INT}"."{INT})([eE][+-]?{INT})?
+FLOAT (({INT}("."{INT}?)?)|("."{INT}))(([eE][+-]?)?{INT})?
 ID [a-zA-Z_][a-zA-Z0-9_]*
 
 %%
@@ -178,16 +181,12 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 {FLOAT}{ID}+ {
     logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
 }
+(({INT}(.{INT}?)?)|(.{INT}))([eE]{FLOAT}+) {
+    logErrorMessage("Ill formed number", yytext);
+}
 {DIGIT}*"."({DIGIT}*([eE][+-]?)?{DIGIT}*"."{DIGIT}*)+ {
     logErrorMessage("Too many decimal point for the character sequence", yytext);
 }
-({INT}?"."[Ee][+-]?{DIGIT}*)|({INT}[eE]{INT}?"."{INT}) {
-    logErrorMessage("Ill formed number", yytext);
-}
-{INT}"." {
-    logErrorMessage("Unfinished number", yytext);
-}
-
 [+-] {
     string token = "ADDOP";
     logFoundMessage(token, yytext);
@@ -346,9 +345,15 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 }
 <STRING_STATE>\\[nt\\'afrbv0"] {
     lexeme += yytext;
-    charLiteral.push_back(extractChar(yytext));
+    char c = extractChar(yytext);
+
+    if(c == -1) {
+        logErrorMessage("Unknown escape sequence: ", yytext);
+    }
+
+    charLiteral.push_back(c);
 }
-<STRING_STATE>\\\n[ \t\r] {
+<STRING_STATE>\\\n {
     lineCount++;
     lexeme += yytext;
 }
@@ -386,14 +391,14 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 "//"[^\r\n]* logFoundMessage("COMMENT", yytext);
 
-"//"[^\r\n]*\\[ \t]*{NEWLINE} {
+"//"[^\r\n]*\\{NEWLINE} {
     tempLineNo = lineCount;
     lineCount++;
     BEGIN MLINE_COMMENT_STATE1;
     lexeme = yytext;
 }
 
-<MLINE_COMMENT_STATE1>[^\r\n]*\\[ \t]*{NEWLINE} {
+<MLINE_COMMENT_STATE1>[^\r\n]*\\{NEWLINE} {
     lineCount++;
     lexeme += yytext;
 }
@@ -403,6 +408,11 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     logFoundMessage("COMMENT", lexeme, tempLineNo);
     lexeme.clear();
     BEGIN INITIAL;
+}
+<MLINE_COMMENT_STATE1><<EOF>> {
+    logErrorMessage("Unterminated comment", lexeme, tempLineNo);
+    printSummary();
+    return 0;
 }
 
 "/*" {
