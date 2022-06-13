@@ -91,6 +91,7 @@ void exitScope() {
 }
 
 void printSummary() {
+    logFile << symbolTable.getNonEmptyList() << '\n';
     logFile << "Total lines: " << lineCount << "\n";
     logFile << "Total errors: " << errorCount << "\n";
 }
@@ -181,7 +182,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 {FLOAT}{ID}+ {
     logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
 }
-(({INT}(.{INT}?)?)|(.{INT}))([eE]{FLOAT}+) {
+(({INT}(.{INT}?)?)|(.{INT}?))([eE][+-]?{FLOAT}+) {
     logErrorMessage("Ill formed number", yytext);
 }
 {DIGIT}*"."({DIGIT}*([eE][+-]?)?{DIGIT}*"."{DIGIT}*)+ {
@@ -343,15 +344,22 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     charLiteral += yytext;
     lexeme += yytext;
 }
-<STRING_STATE>\\[nt\\'afrbv0"] {
+<STRING_STATE>\\[^ \t\r\n] {
     lexeme += yytext;
     char c = extractChar(yytext);
 
     if(c == -1) {
-        logErrorMessage("Unknown escape sequence: ", yytext);
+        logErrorMessage("Unknown escape sequence in string: ", lexeme);
+        charLiteral.clear();
+        lexeme.clear();
+        BEGIN INITIAL;
+    } else if(c == '\b') {
+        // backspace
+        if(charLiteral.length() > 0)
+            charLiteral.pop_back();
+    } else {
+        charLiteral.push_back(c);
     }
-
-    charLiteral.push_back(c);
 }
 <STRING_STATE>\\\n {
     lineCount++;
@@ -368,7 +376,6 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     
     charLiteral.clear();
     lexeme.clear();
-    charLiteral.clear();
     BEGIN INITIAL;
 }
 
