@@ -10,6 +10,7 @@
 #include<iostream>
 #include<fstream>
 #include<string>
+#include"parser.tab.h"
 #include "symbolTable.h"
 
 using namespace std;
@@ -148,7 +149,6 @@ char extractChar(string str) {
 %}
 
 DIGIT [0-9]
-LETTER [a-zA-Z]
 NEWLINE \n|\r\n
 INT {DIGIT}+
 FLOAT (({INT}("."{INT}?)?)|("."{INT}))(([eE][+-]?)?{INT})?
@@ -461,25 +461,25 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 %%
 
-int main(int argc, char* argv[]) {
-    if(argc != 2) {
-        cout << "Please provide input file name and try again\n";
-        return 0;
-    }
+// int main(int argc, char* argv[]) {
+//     if(argc != 2) {
+//         cout << "Please provide input file name and try again\n";
+//         return 0;
+//     }
 
-    FILE* fin = fopen(argv[1], "r");
+//     FILE* fin = fopen(argv[1], "r");
     
-    if(fin == NULL) {
-        printf("Cannot open input file\n");
-        return 0;
-    } 
+//     if(fin == NULL) {
+//         printf("Cannot open input file\n");
+//         return 0;
+//     } 
 
-    logFile.open("1805087_log.txt");
-	tokenFile.open("1805087_token.txt");
+//     logFile.open("1805087_log.txt");
+// 	tokenFile.open("1805087_token.txt");
 
-    yyin = fin;
-    yylex();
-    fclose(fin);
+//     yyin = fin;
+//     yylex();
+//     fclose(fin);
 
-    return 0;
-}
+//     return 0;
+// }

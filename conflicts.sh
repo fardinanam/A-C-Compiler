@@ -1,0 +1,1 @@
+bison -Wcex parser.y

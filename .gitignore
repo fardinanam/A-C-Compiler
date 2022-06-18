@@ -26,6 +26,9 @@ main
 # flex
 lex.yy.*
 
+# bison
+parser.tab.*
+
 # binary file
 *.out
 
