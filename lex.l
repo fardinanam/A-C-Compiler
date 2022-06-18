@@ -10,10 +10,14 @@
 #include<iostream>
 #include<fstream>
 #include<string>
-#include"parser.tab.h"
 #include "symbolTable.h"
+#include"parser.tab.h"
 
 using namespace std;
+
+// extern YYSTYPE yylval;
+extern ofstream logFile;
+extern ofstream errorFile;
 
 int lineCount = 1;
 int errorCount = 0;
@@ -22,11 +26,9 @@ int tempLineNo;
 string charLiteral;
 string lexeme;
 
-ofstream logFile;
 ofstream tokenFile;
 
-
-SymbolTable symbolTable(7);
+// SymbolTable symbolTable(7);
 
 string toUpper(string str) {
     string tempStr = "";
@@ -44,58 +46,58 @@ string toUpper(string str) {
 }
 
 void logFoundMessage(string token, string lexeme) {
-    logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
+    // logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
 }
 
 void logFoundMessage(string token, string lexeme, string charLiteral) {
-    logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " 
-        << lexeme << " found --> <" << token << ", " << charLiteral << ">\n\n";
+    // logFile << "Line no. "<< lineCount << ": Token <" << token << "> Lexeme " 
+    //     << lexeme << " found --> <" << token << ", " << charLiteral << ">\n\n";
 }
 
 void logFoundMessage(string token, string lexeme, int lineNo) {
-    logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
+    // logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " << lexeme << " found.\n\n";
 }
 
 void logFoundMessage(string token, string lexeme, string charLiterals, int lineNo) {
-    logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " 
-        << lexeme << " found --> <" << token << ", " << charLiterals << ">\n\n";
+    // logFile << "Line no. "<< lineNo << ": Token <" << token << "> Lexeme " 
+    //     << lexeme << " found --> <" << token << ", " << charLiterals << ">\n\n";
 }
 
 void logErrorMessage(string errorMessage, string symbol) {
     errorCount++;
-    logFile << "Line no. "<< lineCount << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
+    // logFile << "Line no. "<< lineCount << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
 }
 
 void logErrorMessage(string errorMessage, string symbol, int lineNo) {
     errorCount++;
-    logFile << "Line no. "<< lineNo << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
+    // logFile << "Line no. "<< lineNo << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
 }
 
 void writeTokenFile(string token) {
-    tokenFile << "<" << token << "> ";
+    // tokenFile << "<" << token << "> ";
 }
 
 void writeTokenFile(string token, string charLiteral) {
-    tokenFile << "<" << token << ", " << charLiteral << "> ";
+    // tokenFile << "<" << token << ", " << charLiteral << "> ";
 }
 
-void insertSymbol(string token, string lexeme) {
-    if(symbolTable.insert(lexeme, token)) 
-        logFile << symbolTable.getNonEmptyList() << '\n';
-    else
-        logFile << lexeme + " already exists in current ScopeTable\n\n";
-}
+// void insertSymbol(string token, string lexeme) {
+//     if(symbolTable.insert(lexeme, token)) 
+//         logFile << symbolTable.getNonEmptyList() << '\n';
+//     else
+//         logFile << lexeme + " already exists in current ScopeTable\n\n";
+// }
 
-void exitScope() {
-    symbolTable.exitScope();
-    logFile << symbolTable.getNonEmptyList() << '\n';
-}
+// void exitScope() {
+//     symbolTable.exitScope();
+//     logFile << symbolTable.getNonEmptyList() << '\n';
+// }
 
-void printSummary() {
-    logFile << symbolTable.getNonEmptyList() << '\n';
-    logFile << "Total lines: " << lineCount << "\n";
-    logFile << "Total errors: " << errorCount << "\n";
-}
+// void printSummary() {
+//     logFile << symbolTable.getNonEmptyList() << '\n';
+//     logFile << "Total lines: " << lineCount << "\n";
+//     logFile << "Total errors: " << errorCount << "\n";
+// }
 
 char extractChar(string str) {
     char c;
@@ -156,115 +158,91 @@ ID [a-zA-Z_][a-zA-Z0-9_]*
 
 %%
 
-if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default|continue {
-    string token = toUpper(yytext);
-    logFoundMessage(token, yytext);
-    writeTokenFile(token);
-}
+if {return IF;}
+else {return ELSE;}
+for {return FOR;}
+while {return WHILE;}
+do {return DO;}
+break {return BREAK;}
+int {return INT;}
+char {return CHAR;}
+float {return FLOAT;}
+double {return DOUBLE;}
+void {return VOID;}
+return {return RETURN;}
+switch {return SWITCH;}
+case {return CASE;}
+default {return DEFAULT;}
+continue {return CONTINUE;}
+printf {return PRINTLN;}
+
 {ID} {
-    string token = "ID";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-    insertSymbol(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext ,"ID");
+    return ID;
 }
+
 {INT} {
-    string token = "CONST_INT";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-    insertSymbol(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "CONST_INT");
+    return CONST_INT;
 }
+
 {FLOAT} {
-    string token = "CONST_FLOAT";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-    insertSymbol(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "CONST_FLOAT");
+    return CONST_FLOAT;
 }
+
 {FLOAT}{ID}+ {
     logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
 }
 (({INT}(.{INT}?)?)|(.{INT}?))([eE][+-]?{FLOAT}+) {
     logErrorMessage("Ill formed number", yytext);
 }
+
 {DIGIT}*"."({DIGIT}*([eE][+-]?)?{DIGIT}*"."{DIGIT}*)+ {
     logErrorMessage("Too many decimal point for the character sequence", yytext);
 }
+
 [+-] {
-    string token = "ADDOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "ADDOP");
+    return ADDOP;
 }
+
 [*/%] {
-    string token = "MULOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "MULOP");
+    return MULOP;
 }
+
 "++"|"--" {
-    string token = "INCOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);    
+    yylval.symbolInfo = new SymbolInfo(yytext, "INCOP");
+    return INCOP; 
 }
+
 "<"|"<="|">"|">="|"=="|"!=" {
-    string token = "RELOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "RELOP");
+    return RELOP;
 }
-= {
-    string token = "ASSIGNOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
+
+= {return ASSIGNOP;}
+
 &&|"||" {
-    string token = "LOGICOP";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
+    yylval.symbolInfo = new SymbolInfo(yytext, "LOGICOP");
+    return LOGICOP;
 }
-! {
-    string token = "NOT";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-"(" {
-    string token = "LPAREN";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-")" {
-    string token = "RPAREN";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-"{" {
-    string token = "LCURL";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-    symbolTable.enterScope();
-}
-"}" {
-    string token = "RCURL";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-    exitScope();
-}
-"[" {
-    string token = "LTHIRD";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-"]" {
-    string token = "RTHIRD";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-, {
-    string token = "COMMA";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
-; {
-    string token = "SEMICOLON";
-    logFoundMessage(token, yytext);
-    writeTokenFile(token, yytext);
-}
+
+! {return NOT;}
+
+"(" {return LPAREN;}
+")" {return RPAREN;}
+
+"{" {return LCURL;}
+"}" {return RCURL;}
+
+"[" {return LTHIRD;}
+"]" {return RTHIRD;}
+
+, {return COMMA;}
+
+; {return SEMICOLON;}
 
 ' {
     lexeme = yytext;
@@ -294,7 +272,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
             
             writeTokenFile(token, charLiteral);
             logFoundMessage(token, lexeme, charLiteral);
-            insertSymbol(token, lexeme);
+            // insertSymbol(token, lexeme);
         }
         
         lexeme.clear();
@@ -329,7 +307,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
     logErrorMessage("Unfinished character", lexeme);
     lexeme.clear();
     charLiteral.clear();
-    printSummary();
+    // printSummary();
     return 0;
 }
 
@@ -390,7 +368,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 <STRING_STATE><<EOF>> {
     logErrorMessage("Unterminated string", lexeme, tempLineNo);
-    printSummary();
+    // printSummary();
     lexeme.clear();
     charLiteral.clear();
     return 0;
@@ -418,7 +396,7 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 }
 <MLINE_COMMENT_STATE1><<EOF>> {
     logErrorMessage("Unterminated comment", lexeme, tempLineNo);
-    printSummary();
+    // printSummary();
     return 0;
 }
 
@@ -446,12 +424,12 @@ if|else|for|while|do|break|int|char|float|double|void|return|switch|case|default
 
 <MLINE_COMMENT_STATE2><<EOF>> {
     logErrorMessage("Unterminated comment", lexeme, tempLineNo);
-    printSummary();
+    // printSummary();
     return 0;
 }
 
 <<EOF>> {
-    printSummary();
+    // printSummary();
     return 0;
 }
 

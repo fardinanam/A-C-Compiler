@@ -33,5 +33,4 @@ parser.tab.*
 *.out
 
 # output text file
-*log.txt
-*token.txt
+1805087_*.txt
