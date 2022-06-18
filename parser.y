@@ -100,29 +100,56 @@ func_declaration
     }
 |   type_specifier ID LPAREN RPAREN SEMICOLON {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "();", "VARIABLE");
-        logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN", $$->getName()); 
+        logFoundRule("func_declaration", "type_specifier ID LPAREN RPAREN SEMICOLON", $$->getName()); 
     }
 ;
 
 func_definition
-:   type_specifier ID LPAREN parameter_list RPAREN compound_statement
-|   type_specifier ID LPAREN RPAREN compound_statement
+:   type_specifier ID LPAREN parameter_list RPAREN compound_statement {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
+        logFoundRule("func_definition", "type_specifier ID LPAREN parameter_list RPAREN compound_statement", $$->getName());
+    }
+|   type_specifier ID LPAREN RPAREN compound_statement {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "()" + $5->getName(), "VARIABLE");
+        logFoundRule("func_definition", "type_specifier ID LPAREN RPAREN compound_statement", $$->getName());
+    }
 ;
 
 parameter_list
-:   parameter_list COMMA type_specifier ID
-|   parameter_list COMMA type_specifier
-|   type_specifier ID
-|   type_specifier
+:   parameter_list COMMA type_specifier ID {
+        $$ = new SymbolInfo($1->getName() + "," + $3->getName() + " " + $4->getName(), "VARIABLE");
+        logFoundRule("parameter_list", "parameter_list COMMA type_specifier ID", $$->getName());
+    }
+|   parameter_list COMMA type_specifier {
+        $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
+        logFoundRule("parameter_list", "parameter_list COMMA type_specifier", $$->getName());
+    }
+|   type_specifier ID {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName(), "VARIABLE");
+        logFoundRule("parameter_list", "type_specifier ID", $$->getName());
+    }
+|   type_specifier {
+        $$ = $1;
+        logFoundRule("parameter_list", "type_specifier", $$->getName());
+    }
 ;
 
 compound_statement
-:   LCURL statements RCURL
-|   LCURL RCURL
+:   LCURL statements RCURL {
+        $$ = new SymbolInfo("{\n" + $2->getName() + "\n}", "VARIABLE");
+        logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
+    }
+|   LCURL RCURL {
+        $$ = new SymbolInfo("{}", "VARIABLE");
+        logFoundRule("compound_statement", "LCURL RCURL", $$->getName());
+    }
 ;
 
 var_declaration
-:   type_specifier declaration_list SEMICOLON
+:   type_specifier declaration_list SEMICOLON {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + ";", "VARIABLE");
+        logFoundRule("var_declaration", "type_specifier declaration_list SEMICOLON", $$->getName());
+    }
 ;
 
 type_specifier
@@ -153,35 +180,80 @@ declaration_list
         $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID", $$->getName());
     }
-|   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD
+|   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD {
+        $$ = new SymbolInfo($1->getName() + "," + $3->getName() + "[" + $5->getName() + "]", "VARIABLE");
+        logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
+    }
 |   ID {
         $$ = $1;
         logFoundRule("declaration_list", "ID", $$->getName());
     }
-|   ID LTHIRD CONST_INT RTHIRD
+|   ID LTHIRD CONST_INT RTHIRD {
+        $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
+        logFoundRule("declaration_list", "ID LTHIRD CONST_INT RTHIRD", $$->getName());
+    }
 ;
 
 statements
-:   statement
-|   statements statement
+:   statement {
+        $$ = $1;
+        logFoundRule("statements", "statement", $$->getName());
+    }
+|   statements statement {
+        $$ = new SymbolInfo($1->getName() + "\n" + $2->getName(), "VARIABLE");
+        logFoundRule("statements", "statements statement", $$->getName());
+    }
 ;
 
 statement
-:   var_declaration
-|   expression_statement
-|   compound_statement
-|   FOR LPAREN expression_statement expression_statement expression
-    RPAREN statement
-|   IF LPAREN expression RPAREN statement               %prec LOWER_THAN_ELSE
-|   IF LPAREN expression RPAREN statement ELSE statement
-|   WHILE LPAREN expression RPAREN statement
-|   PRINTLN LPAREN ID RPAREN SEMICOLON
-|   RETURN expression SEMICOLON
+:   var_declaration {
+        $$ = $1;
+        logFoundRule("statement", "var_declaration", $$->getName());
+    }
+|   expression_statement {
+        $$ = $1;
+        logFoundRule("statement", "expression_statement", $$->getName());
+    }
+|   compound_statement {
+        $$ = $1;
+        logFoundRule("statement", "compound_statement", $$->getName());
+    }
+|   FOR LPAREN expression_statement expression_statement expression RPAREN statement {
+        $$ = new SymbolInfo("for(" + $3->getName() + $4->getName() + $5->getName() + ")" + $7->getName(), "VARIABLE");
+        logFoundRule("statement", "FOR LPAREN expression_statement expression_statement expression RPAREN statement", $$->getName());
+    }
+    
+|   IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE {
+        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
+        logFoundRule("statement", "IF LPAREN expression RPAREN statement", $$->getName());
+    }
+|   IF LPAREN expression RPAREN statement ELSE statement {
+        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else" + $7->getName(), "VARIABLE");
+        logFoundRule("statement", "IF LPAREN expression RPAREN statement ELSE statement", $$->getName());
+    }
+|   WHILE LPAREN expression RPAREN statement {
+        $$ = new SymbolInfo("while(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
+        logFoundRule("statement", "WHILE LPAREN expression RPAREN statement", $$->getName());
+    }
+|   PRINTLN LPAREN ID RPAREN SEMICOLON {
+        $$ = new SymbolInfo("printf(" + $3->getName() + ");", "VARIABLE");
+        logFoundRule("statement", "PRINTLN LPAREN ID RPAREN SEMICOLON", $$->getName());
+    }
+|   RETURN expression SEMICOLON {
+        $$ = new SymbolInfo("return " + $2->getName() + ";", "VARIABLE");
+        logFoundRule("statement", "RETURN expression SEMICOLON", $$->getName());
+    }
 ;
 
 expression_statement
-:   SEMICOLON
-|   expression SEMICOLON
+:   SEMICOLON {
+        $$ = new SymbolInfo(";", "VARIABLE");
+        logFoundRule("expression_statement", "SEMICOLON", $$->getName());
+    }
+|   expression SEMICOLON {
+        $$ = new SymbolInfo($1->getName() + ";", "VARIABLE");
+        logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
+    }
 ;
 
 variable
@@ -189,48 +261,111 @@ variable
         $$ = $1;
         logFoundRule("variable", "ID", $$->getName());
     }
-|   ID LTHIRD expression RTHIRD
+|   ID LTHIRD expression RTHIRD {
+        $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
+        logFoundRule("variable", "ID LTHIRD expression RTHIRD", $$->getName());
+    }
 ;
 
 expression
-:   logic_expression
-|   variable ASSIGNOP logic_expression
+:   logic_expression {
+        $$ = $1;
+        logFoundRule("expression", "logic_expression", $$->getName());
+    }
+|   variable ASSIGNOP logic_expression {
+        $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), "VARIABLE");
+        logFoundRule("expression", "variable ASSIGNOP logic_expression", $$->getName());
+    }
 ;
 
 logic_expression
-:   rel_expression
-|   rel_expression LOGICOP rel_expression
+:   rel_expression {
+        $$ = $1;
+        logFoundRule("logic_expression", "rel_expression", $$->getName());
+    }
+|   rel_expression LOGICOP rel_expression {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
+        logFoundRule("logic_expression", "rel_expression LOGICOP rel_expression", $$->getName());
+    }
 ;
 
 rel_expression
-:   simple_expression
-|   simple_expression RELOP simple_expression
+:   simple_expression {
+        $$ = $1;
+        logFoundRule("rel_expression", "simple_expression", $$->getName());
+    }
+|   simple_expression RELOP simple_expression {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
+        logFoundRule("rel_expression", "simple_expression RELOP simple_expression", $$->getName());
+    }
 ;
 
 simple_expression
-:   term
-|   simple_expression ADDOP term
+:   term {
+        $$ = $1;
+        logFoundRule("simple_expression", "term", $$->getName());
+    }
+|   simple_expression ADDOP term {
+        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
+        logFoundRule("simple_expression", "simple_expression ADDOP term", $$->getName());
+    }
 ;
 
 term
-:   unary_expression
-|   term MULOP unary_expression
+:   unary_expression {
+        $$ = $1;
+        logFoundRule("term", "unary_expression", $$->getName());
+    }
+|   term MULOP unary_expression {
+        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
+        logFoundRule("term", "term MULOP unary_expression", $$->getName());
+    }
 ;
 
 unary_expression
-:   ADDOP unary_expression
-|   NOT unary_expression
-|   factor
+:   ADDOP unary_expression {
+        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        logFoundRule("unary_expression", "ADDOP unary_expression", $$->getName());
+    }
+|   NOT unary_expression {
+        $$ = new SymbolInfo("!" + $2->getName(), "VARIABLE");
+        logFoundRule("unary_expression", "NOT unary_expression", $$->getName());
+    }
+|   factor {
+        $$ = $1;
+        logFoundRule("unary_expression", "factor", $$->getName());
+    }
 ;
 
 factor
-:   variable
-|   ID LPAREN argument_list RPAREN
-|   LPAREN expression RPAREN
-|   CONST_INT
-|   CONST_FLOAT
-|   variable INCOP              %prec POSTFIX_INCOP
-|   INCOP variable              %prec PREFIX_INCOP
+:   variable {
+        $$ = $1;
+        logFoundRule("factor", "variable", $$->getName());
+    }
+|   ID LPAREN argument_list RPAREN {
+        $$ = new SymbolInfo($1->getName() + "(" + $3->getName() + ")", "VARIABLE");
+        logFoundRule("factor", "ID LPAREN argument_list RPAREN", $$->getName());
+    }
+|   LPAREN expression RPAREN {
+        $$ = new SymbolInfo("(" + $2->getName() + ")", "VARIABLE");
+        logFoundRule("factor", "LPAREN expression RPAREN", $$->getName());
+    }
+|   CONST_INT {
+        $$ = $1;
+        logFoundRule("factor", "CONST_INT", $$->getName());
+    }
+|   CONST_FLOAT {
+        $$ = $1;
+        logFoundRule("factor", "CONST_FLOAT", $$->getName());
+    }
+|   variable INCOP %prec POSTFIX_INCOP {
+        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        logFoundRule("factor", "variable INCOP", $$->getName());
+    }
+|   INCOP variable %prec PREFIX_INCOP {
+        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        logFoundRule("factor", "INCOP variable", $$->getName());
+    }
 ;
 
 argument_list
@@ -245,8 +380,14 @@ argument_list
 ;
 
 arguments
-:   arguments COMMA logic_expression
-|   logic_expression
+:   arguments COMMA logic_expression {
+        $$ = new SymbolInfo($1->getName() + ", " + $3->getName(), "VARIABLE");
+        logFoundRule("arguments", "arguments COMMA logic_expression", $$->getName());
+    }
+|   logic_expression {
+        $$ = $1;
+        logFoundRule("arguments", "logic_expression", $$->getName());
+    }
 ;
 
 %%

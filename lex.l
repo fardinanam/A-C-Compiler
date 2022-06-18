@@ -438,26 +438,3 @@ printf {return PRINTLN;}
 {NEWLINE} lineCount++;
 
 %%
-
-// int main(int argc, char* argv[]) {
-//     if(argc != 2) {
-//         cout << "Please provide input file name and try again\n";
-//         return 0;
-//     }
-
-//     FILE* fin = fopen(argv[1], "r");
-    
-//     if(fin == NULL) {
-//         printf("Cannot open input file\n");
-//         return 0;
-//     } 
-
-//     logFile.open("1805087_log.txt");
-// 	tokenFile.open("1805087_token.txt");
-
-//     yyin = fin;
-//     yylex();
-//     fclose(fin);
-
-//     return 0;
-// }
