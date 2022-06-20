@@ -1,6 +1,8 @@
 %{
+    #include<bits/stdc++.h>
     #include<iostream>
     #include<string>
+    #include<vector>
     #include<fstream>
     #include "symbolTable.h"
     #include "symbolInfo.h"
@@ -12,6 +14,7 @@
     extern int errorCount;
 
     SymbolTable symbolTable(7);
+    vector<string> variables;
 
     ofstream logFile;
     ofstream errorFile;
@@ -36,12 +39,14 @@
 }
 
 %token IF ELSE FOR WHILE DO BREAK INT CHAR FLOAT DOUBLE VOID RETURN SWITCH CASE DEFAULT CONTINUE PRINTLN
-%token STRING NOT LPAREN RPAREN LCURL RCURL LTHIRD RTHIRD COMMA SEMICOLON
-%token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP ASSIGNOP LOGICOP INCOP ID
+%token STRING NOT LPAREN RPAREN LCURL RCURL LTHIRD RTHIRD COMMA SEMICOLON ASSIGNOP
+%token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP LOGICOP INCOP ID
 
 %type<symbolInfo> start program unit func_declaration func_definition parameter_list compound_statement var_declaration
 type_specifier declaration_list statements statement expression_statement variable expression
 logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
+
+%destructor {delete $$;} <symbolInfo>
 
 %left COMMA
 %right ASSIGNOP
@@ -71,6 +76,8 @@ program
 :   program unit {
         $$ = new SymbolInfo($1->getName() + "\n" + $2->getName(), "VARIABLE");
         logFoundRule("program", "program unit", $$->getName());
+        delete $1;
+        delete $2;
     }
 |   unit {
         $$ = $1;
@@ -97,10 +104,15 @@ func_declaration
 :   type_specifier ID LPAREN parameter_list RPAREN {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "(" + $4->getName() + ")", "VARIABLE");
         logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN", $$->getName());
+        delete $1;
+        delete $2;
+        delete $4;
     }
 |   type_specifier ID LPAREN RPAREN SEMICOLON {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "();", "VARIABLE");
         logFoundRule("func_declaration", "type_specifier ID LPAREN RPAREN SEMICOLON", $$->getName()); 
+        delete $1;
+        delete $2;
     }
 ;
 
@@ -108,10 +120,17 @@ func_definition
 :   type_specifier ID LPAREN parameter_list RPAREN compound_statement {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN parameter_list RPAREN compound_statement", $$->getName());
+        delete $1;
+        delete $2;
+        delete $4;
+        delete $6;
     }
 |   type_specifier ID LPAREN RPAREN compound_statement {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "()" + $5->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN RPAREN compound_statement", $$->getName());
+        delete $1;
+        delete $2;
+        delete $5;
     }
 ;
 
@@ -119,14 +138,21 @@ parameter_list
 :   parameter_list COMMA type_specifier ID {
         $$ = new SymbolInfo($1->getName() + "," + $3->getName() + " " + $4->getName(), "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier ID", $$->getName());
+        delete $1;
+        delete $3;
+        delete $4;
     }
 |   parameter_list COMMA type_specifier {
         $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier", $$->getName());
+        delete $1;
+        delete $3;
     }
 |   type_specifier ID {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName(), "VARIABLE");
         logFoundRule("parameter_list", "type_specifier ID", $$->getName());
+        delete $1;
+        delete $2;
     }
 |   type_specifier {
         $$ = $1;
@@ -138,6 +164,7 @@ compound_statement
 :   LCURL statements RCURL {
         $$ = new SymbolInfo("{\n" + $2->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
+        delete $2;
     }
 |   LCURL RCURL {
         $$ = new SymbolInfo("{}", "VARIABLE");
@@ -149,6 +176,8 @@ var_declaration
 :   type_specifier declaration_list SEMICOLON {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + ";", "VARIABLE");
         logFoundRule("var_declaration", "type_specifier declaration_list SEMICOLON", $$->getName());
+        delete $1;
+        delete $2;
     }
 ;
 
@@ -179,10 +208,15 @@ declaration_list
 :   declaration_list COMMA ID {
         $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID", $$->getName());
+        delete $1;
+        delete $3;
     }
 |   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD {
         $$ = new SymbolInfo($1->getName() + "," + $3->getName() + "[" + $5->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
+        delete $1;
+        delete $3;
+        delete $5;
     }
 |   ID {
         $$ = $1;
@@ -191,6 +225,8 @@ declaration_list
 |   ID LTHIRD CONST_INT RTHIRD {
         $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "ID LTHIRD CONST_INT RTHIRD", $$->getName());
+        delete $1;
+        delete $3;
     }
 ;
 
@@ -202,6 +238,8 @@ statements
 |   statements statement {
         $$ = new SymbolInfo($1->getName() + "\n" + $2->getName(), "VARIABLE");
         logFoundRule("statements", "statements statement", $$->getName());
+        delete $1;
+        delete $2;
     }
 ;
 
@@ -221,27 +259,40 @@ statement
 |   FOR LPAREN expression_statement expression_statement expression RPAREN statement {
         $$ = new SymbolInfo("for(" + $3->getName() + $4->getName() + $5->getName() + ")" + $7->getName(), "VARIABLE");
         logFoundRule("statement", "FOR LPAREN expression_statement expression_statement expression RPAREN statement", $$->getName());
+        delete $3;
+        delete $4;
+        delete $5;
+        delete $7;
     }
     
 |   IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE {
         $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement", $$->getName());
+        delete $3;
+        delete $5;
     }
 |   IF LPAREN expression RPAREN statement ELSE statement {
         $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else" + $7->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement ELSE statement", $$->getName());
+        delete $3;
+        delete $5;
+        delete $7;
     }
 |   WHILE LPAREN expression RPAREN statement {
         $$ = new SymbolInfo("while(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
         logFoundRule("statement", "WHILE LPAREN expression RPAREN statement", $$->getName());
+        delete $3;
+        delete $5;
     }
 |   PRINTLN LPAREN ID RPAREN SEMICOLON {
         $$ = new SymbolInfo("printf(" + $3->getName() + ");", "VARIABLE");
         logFoundRule("statement", "PRINTLN LPAREN ID RPAREN SEMICOLON", $$->getName());
+        delete $3;
     }
 |   RETURN expression SEMICOLON {
         $$ = new SymbolInfo("return " + $2->getName() + ";", "VARIABLE");
         logFoundRule("statement", "RETURN expression SEMICOLON", $$->getName());
+        delete $2;
     }
 ;
 
@@ -253,6 +304,7 @@ expression_statement
 |   expression SEMICOLON {
         $$ = new SymbolInfo($1->getName() + ";", "VARIABLE");
         logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
+        delete $1;
     }
 ;
 
@@ -264,6 +316,8 @@ variable
 |   ID LTHIRD expression RTHIRD {
         $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
         logFoundRule("variable", "ID LTHIRD expression RTHIRD", $$->getName());
+        delete $1;
+        delete $3;
     }
 ;
 
@@ -275,6 +329,8 @@ expression
 |   variable ASSIGNOP logic_expression {
         $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), "VARIABLE");
         logFoundRule("expression", "variable ASSIGNOP logic_expression", $$->getName());
+        delete $1;
+        delete $3;
     }
 ;
 
@@ -286,6 +342,9 @@ logic_expression
 |   rel_expression LOGICOP rel_expression {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
         logFoundRule("logic_expression", "rel_expression LOGICOP rel_expression", $$->getName());
+        delete $1;
+        delete $2;
+        delete $3;
     }
 ;
 
@@ -297,6 +356,9 @@ rel_expression
 |   simple_expression RELOP simple_expression {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
         logFoundRule("rel_expression", "simple_expression RELOP simple_expression", $$->getName());
+        delete $1;
+        delete $2;
+        delete $3;
     }
 ;
 
@@ -308,6 +370,9 @@ simple_expression
 |   simple_expression ADDOP term {
         $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
         logFoundRule("simple_expression", "simple_expression ADDOP term", $$->getName());
+        delete $1;
+        delete $2;
+        delete $3;
     }
 ;
 
@@ -319,6 +384,9 @@ term
 |   term MULOP unary_expression {
         $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
         logFoundRule("term", "term MULOP unary_expression", $$->getName());
+        delete $1;
+        delete $2;
+        delete $3;
     }
 ;
 
@@ -326,10 +394,13 @@ unary_expression
 :   ADDOP unary_expression {
         $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
         logFoundRule("unary_expression", "ADDOP unary_expression", $$->getName());
+        delete $1;
+        delete $2;
     }
 |   NOT unary_expression {
         $$ = new SymbolInfo("!" + $2->getName(), "VARIABLE");
         logFoundRule("unary_expression", "NOT unary_expression", $$->getName());
+        delete $2;
     }
 |   factor {
         $$ = $1;
@@ -345,10 +416,13 @@ factor
 |   ID LPAREN argument_list RPAREN {
         $$ = new SymbolInfo($1->getName() + "(" + $3->getName() + ")", "VARIABLE");
         logFoundRule("factor", "ID LPAREN argument_list RPAREN", $$->getName());
+        delete $1;
+        delete $3;
     }
 |   LPAREN expression RPAREN {
         $$ = new SymbolInfo("(" + $2->getName() + ")", "VARIABLE");
         logFoundRule("factor", "LPAREN expression RPAREN", $$->getName());
+        delete $2;
     }
 |   CONST_INT {
         $$ = $1;
@@ -361,10 +435,14 @@ factor
 |   variable INCOP %prec POSTFIX_INCOP {
         $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
         logFoundRule("factor", "variable INCOP", $$->getName());
+        delete $1;
+        delete $2;
     }
 |   INCOP variable %prec PREFIX_INCOP {
         $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
         logFoundRule("factor", "INCOP variable", $$->getName());
+        delete $1;
+        delete $2;
     }
 ;
 
@@ -383,6 +461,8 @@ arguments
 :   arguments COMMA logic_expression {
         $$ = new SymbolInfo($1->getName() + ", " + $3->getName(), "VARIABLE");
         logFoundRule("arguments", "arguments COMMA logic_expression", $$->getName());
+        delete $1;
+        delete $3;
     }
 |   logic_expression {
         $$ = $1;
@@ -414,6 +494,6 @@ int main(int argc, char* argv[]) {
     errorFile.close();
     logFile.close();
     fclose(fin);
-
+    
     return 0;
 }
