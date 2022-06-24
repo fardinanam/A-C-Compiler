@@ -26,10 +26,6 @@ public:
         this->next = NULL;
     }
 
-    void setName(std::string name) { this->name = name; }
-
-    void setType(std::string type) { this->type = type; }
-
     void setNext(SymbolInfo *next) { this->next = next; }
 
     std::string getName() const { return name; }

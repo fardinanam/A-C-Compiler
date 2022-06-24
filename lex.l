@@ -222,7 +222,15 @@ printf {return PRINTLN;}
     return RELOP;
 }
 
-= {return ASSIGNOP;}
+= {
+    yylval.symbolInfo = new SymbolInfo(yytext, "ASSIGNOP");
+    return ASSIGNOP;
+}
+
+"+="|"-="|"*="|"/=" {
+    yylval.symbolInfo = new SymbolInfo(yytext, "ARITHASSIGNOP");
+    return ARITHASSIGNOP;
+}
 
 &&|"||" {
     yylval.symbolInfo = new SymbolInfo(yytext, "LOGICOP");

@@ -1,7 +1,8 @@
 #ifndef COMPILER_SCOPE_TABLE_H
 #define COMPILER_SCOPE_TABLE_H
 
-#include "symbolInfo.h"
+#include "idInfo.h"
+#include "functionInfo.h"
 
 /**
  * Contains array of pointers to SymbolInfo objects as a
@@ -79,25 +80,27 @@ public:
      * if no symbol corresponding to the name already exists in the table.
      * @param name of the symbol
      * @param type of the symbol
-     * @return true if insertion is successful or false if unsuccessful.
+     * @param isFunction if the symbol is of type function, set true.
+     * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    bool insert(std::string name, std::string type) {
+    SymbolInfo* insert(std::string name, std::string type, bool isFunction = false) {
         int hashtableIndex = sdbmhash(name) % size;
         int linkedListIndex = 0;
         SymbolInfo* current = hashTable[hashtableIndex];
+        SymbolInfo* newSymbolInfo = NULL;
 
         if(current == NULL) {
             hashTable[hashtableIndex] = new SymbolInfo(name, type);
         } else if(name == current->getName()) {
             // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
-            return false;
+            return NULL;
         } else {
             SymbolInfo* next = current->getNext();
 
             while (next != NULL) {
                 if(name == current->getName()) {
                     // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
-                    return false;
+                    return NULL;
                 }
                 
                 current = next;
@@ -108,16 +111,23 @@ public:
             // Check the last element
             if(name == current->getName()) {
                 // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
-                return false;
+                return NULL;
             }
             
-            current->setNext(new SymbolInfo(name, type));
+            if(isFunction) {
+                newSymbolInfo = new FunctionInfo(name, type);
+                current->setNext(newSymbolInfo);
+            } else {
+                newSymbolInfo = new SymbolInfo(name, type);
+                current->setNext(newSymbolInfo);
+            }
+            
             linkedListIndex++;
         }
 
         // std::cout << "Inserted in ScopeTable # " << id
         //           << " at position " << hashtableIndex << ", " << linkedListIndex << '\n';
-        return true;
+        return newSymbolInfo;
     }
 
     /**

@@ -69,14 +69,14 @@ public:
      * corresponding to the name already exists in the scope.
      * @param name of the symbol
      * @param type of the symbol
-     * @return true if insertion is successful or false if unsuccessful.
+     * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    bool insert(std::string name, std::string type) {
+    SymbolInfo* insert(std::string name, std::string type, bool isFunction = false) {
         if(currentScopeTable == NULL) {
             enterScope();
         }
 
-        return currentScopeTable->insert(name, type);
+        return currentScopeTable->insert(name, type, isFunction);
     }
 
     /**
