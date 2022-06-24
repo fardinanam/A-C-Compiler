@@ -2,6 +2,7 @@
 #define COMPILER_SYMBOL_TABLE_H
 
 #include "scopeTable.h"
+#include <list>
 
 /**
  * Contains the size of every scope table's hashTable.
@@ -13,7 +14,7 @@ private:
     int sizeOfScopeTables;
     ScopeTable* rootScopeTable;
     ScopeTable* currentScopeTable;
-
+    std::list<FunctionInfo*> functions;
 public:
     /**
      * Creates the root scope and points the current
@@ -67,6 +68,8 @@ public:
     /**
      * Inserts a new symbol in the current scope if no symbol
      * corresponding to the name already exists in the scope.
+     * If the inserted id is a function and it is not declared before
+     * then adds it in the list of functions.
      * @param name of the symbol
      * @param type of the symbol
      * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
@@ -76,7 +79,42 @@ public:
             enterScope();
         }
 
-        return currentScopeTable->insert(name, type, isFunction);
+        SymbolInfo* symbolInfo = currentScopeTable->insert(name, type, isFunction);
+        if(isFunction && symbolInfo != NULL) {
+            functions.push_back((FunctionInfo*)symbolInfo);
+        }
+
+        return symbolInfo;
+    }
+
+    /**
+     * Inserts a new symbol in the current scope if no symbol
+     * corresponding to the name already exists in the scope.
+     * @param name of the symbol
+     * @param type of the symbol should always be ID
+     * @param idType of the ID
+     * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
+     */
+    SymbolInfo *insert(std::string name, std::string type, std::string idType) {
+        if(type != "ID") {
+            std::cout << "Invalid type. \"ID\" expected\n";
+            return NULL;
+        }
+
+        if (currentScopeTable == NULL) {
+            enterScope();
+        }
+
+        return currentScopeTable->insert(name, type, idType);
+    }
+
+    bool containsFunction(std::string name) {
+        for(FunctionInfo* function : functions) {
+            if(function->getName() == name)
+                return true;
+        }
+
+        return false;
     }
 
     /**
@@ -92,6 +130,13 @@ public:
         }
         
         return currentScopeTable->remove(symbolName);
+    }
+
+    SymbolInfo* lookUpCurrentScope(std::string symbolName) {
+        if(currentScopeTable == NULL) 
+            return NULL;
+        
+        return currentScopeTable->lookUp(symbolName);
     }
 
     /**

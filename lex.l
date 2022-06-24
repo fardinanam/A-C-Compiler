@@ -19,6 +19,8 @@ using namespace std;
 extern ofstream logFile;
 extern ofstream errorFile;
 
+SymbolTable symbolTable(29);
+
 int lineCount = 1;
 int errorCount = 0;
 int tempLineNo;
@@ -222,10 +224,7 @@ printf {return PRINTLN;}
     return RELOP;
 }
 
-= {
-    yylval.symbolInfo = new SymbolInfo(yytext, "ASSIGNOP");
-    return ASSIGNOP;
-}
+= {return ASSIGNOP;}
 
 "+="|"-="|"*="|"/=" {
     yylval.symbolInfo = new SymbolInfo(yytext, "ARITHASSIGNOP");
@@ -243,7 +242,12 @@ printf {return PRINTLN;}
 ")" {return RPAREN;}
 
 "{" {return LCURL;}
-"}" {return RCURL;}
+
+"}" {
+    logFile << symbolTable.getNonEmptyList() << "\n";
+    symbolTable.exitScope();
+    return RCURL;
+}
 
 "[" {return LTHIRD;}
 "]" {return RTHIRD;}

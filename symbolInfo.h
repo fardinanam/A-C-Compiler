@@ -14,6 +14,7 @@ private:
     std::string name;
     std::string type;
     SymbolInfo *next;
+    bool isFunction;
 public:
     /**
      * Initializes the object.
@@ -24,9 +25,14 @@ public:
         this->name = name;
         this->type = type;
         this->next = NULL;
+        this->isFunction = false;
     }
 
+    void setIsFunction() {isFunction = true;}
+
     void setNext(SymbolInfo *next) { this->next = next; }
+
+    bool getIsFunction() const { return isFunction; }
 
     std::string getName() const { return name; }
 

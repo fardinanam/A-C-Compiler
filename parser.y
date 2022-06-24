@@ -2,19 +2,22 @@
     #include<bits/stdc++.h>
     #include<iostream>
     #include<string>
-    #include<vector>
+    #include<list>
+    #include<iterator>
+    #include<utility>
     #include<fstream>
     #include "symbolTable.h"
-    #include "symbolInfo.h"
     
     using namespace std;
     
     extern FILE* yyin;
     extern int lineCount;   
     extern int errorCount;
+    extern SymbolTable symbolTable;
 
-    SymbolTable symbolTable(7);
-    vector<string> variables;
+    list<pair<string, string> > newDeclaredVars;  // Contains variables <name, type> declared in the current scope
+    list<pair<string, string> > parameters;   // Contains the parameter list <name, type> of the currently declared function
+    string varType;
 
     ofstream logFile;
     ofstream errorFile;
@@ -30,6 +33,49 @@
         logFile << "Line " << lineCount << ": " << variable << " : " << rule << "\n\n";
         logFile << matchedString << "\n\n";
     }
+
+    void errorMessage(string message) {
+        errorCount++;
+        errorFile << "Error at line " << lineCount << ": " << message << "\n\n";
+    }
+
+    void insertId(string idName, string type) {
+        SymbolInfo* idInfo = symbolTable.insert(idName, type);
+        if(idInfo == NULL) {
+            errorMessage("Multiple declaration of " + idName);
+        }
+    }
+
+    /** 
+    * Checks if the ID is already declared or not
+    * If declared then throw an error
+    * else inserts the function in the root scope
+    * and updates the return type
+    */
+    void handleFunctionDeclaration(string name, string returnType) {
+        FunctionInfo* functionInfo = (FunctionInfo*)symbolTable.insert(name, "ID", true);
+
+        if(functionInfo == NULL) {
+            errorMessage("Multiple declaration of " + name);
+        } else {
+            functionInfo->setReturnType(returnType);
+            // Add all the parameters to the function and then remove
+            // those from the parameter list
+            list<pair<string, string> >::iterator it = parameters.begin();
+            int i = 1;
+            while(it != parameters.end()) {
+                functionInfo->addParameter(i, (*it).second);
+                parameters.erase(it++);
+                i++;
+            }
+        }
+    }
+
+    void printSummary() {
+        logFile << symbolTable.getNonEmptyList() << '\n';
+        logFile << "Total lines: " << lineCount << "\n";
+        logFile << "Total errors: " << errorCount << "\n";
+    }
 %}
 
 %define parse.error verbose
@@ -40,9 +86,9 @@
 
 %token IF ELSE FOR WHILE DO BREAK INT CHAR FLOAT DOUBLE VOID RETURN SWITCH CASE DEFAULT CONTINUE PRINTLN
 %token STRING NOT LPAREN RPAREN LCURL RCURL LTHIRD RTHIRD COMMA SEMICOLON ASSIGNOP
-%token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP LOGICOP INCOP ID
+%token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP LOGICOP INCOP ID ARITHASSIGNOP
 
-%type<symbolInfo> start program unit func_declaration func_definition parameter_list compound_statement var_declaration
+%type<symbolInfo> program unit func_declaration func_definition parameter_list compound_statement var_declaration
 type_specifier declaration_list statements statement expression_statement variable expression
 logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
 
@@ -67,8 +113,10 @@ logic_expression rel_expression simple_expression term unary_expression factor a
 
 start
 :   program {
-        $$ = $1;
-        logFoundRule("start", "program", $$->getName());
+        logFoundRule("start", "program", "");
+        printSummary();
+
+        delete $1;
     }
 ;
 
@@ -101,15 +149,25 @@ unit
 ;
 
 func_declaration
-:   type_specifier ID LPAREN parameter_list RPAREN {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "(" + $4->getName() + ")", "VARIABLE");
-        logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN", $$->getName());
+:   type_specifier ID LPAREN parameter_list RPAREN SEMICOLON {
+        string returnType = $1->getName();
+        string id = $2->getName();
+        
+        handleFunctionDeclaration(id, returnType);
+        
+        $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ");", "VARIABLE");
+        logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN SEMICOLON", $$->getName());
         delete $1;
         delete $2;
         delete $4;
     }
 |   type_specifier ID LPAREN RPAREN SEMICOLON {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "();", "VARIABLE");
+        string returnType = $1->getName();
+        string id = $2->getName();
+        
+        handleFunctionDeclaration(id, returnType);
+        
+        $$ = new SymbolInfo(returnType + " " + id + "();", "VARIABLE");
         logFoundRule("func_declaration", "type_specifier ID LPAREN RPAREN SEMICOLON", $$->getName()); 
         delete $1;
         delete $2;
@@ -118,16 +176,36 @@ func_declaration
 
 func_definition
 :   type_specifier ID LPAREN parameter_list RPAREN compound_statement {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
+        // Check if the function is already in the root scope
+        // If yes then check if it is defined or not
+        // If  yes then throw an error
+        // If it is declared but not defined then 
+        // create new scope and insert all the parameters and newDeclaredVars in the scope
+        // If it is neither declared nor defined then
+        // insert the function in the root scope and 
+        // create new scope and insert all the parameters and newDeclaredVars in the scope
+        // Print the symbol table and then exit the current scope
+        string id = $2->getName();
+        symbolTable.insert(id, "ID", true);
+
+        $$ = new SymbolInfo($1->getName() + " " + id + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN parameter_list RPAREN compound_statement", $$->getName());
+
         delete $1;
         delete $2;
         delete $4;
         delete $6;
     }
 |   type_specifier ID LPAREN RPAREN compound_statement {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + "()" + $5->getName(), "VARIABLE");
+        string id = $2->getName();
+        symbolTable.insert(id, "ID", true);
+        // handleNewScope();
+
+        $$ = new SymbolInfo($1->getName() + " " + id + "()" + $5->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN RPAREN compound_statement", $$->getName());
+
+        // handleExitScope();
+
         delete $1;
         delete $2;
         delete $5;
@@ -136,25 +214,49 @@ func_definition
 
 parameter_list
 :   parameter_list COMMA type_specifier ID {
-        $$ = new SymbolInfo($1->getName() + "," + $3->getName() + " " + $4->getName(), "VARIABLE");
+        string id = $4->getName();
+        string type = $3->getName();
+
+        // Save the name and type of the parameter
+        parameters.push_back(make_pair(id, type));
+
+        $$ = new SymbolInfo($1->getName() + "," + type + " " + id, "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier ID", $$->getName());
+
         delete $1;
         delete $3;
         delete $4;
     }
 |   parameter_list COMMA type_specifier {
-        $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
+        string type = $3->getName();
+
+        // Save the name and type of the parameter
+        parameters.push_back(make_pair("", type));
+
+        $$ = new SymbolInfo($1->getName() + "," + type, "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier", $$->getName());
         delete $1;
         delete $3;
     }
 |   type_specifier ID {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName(), "VARIABLE");
+        string type = $1->getName();
+        string id =  $2->getName();
+
+        // Save the name and type of the parameter
+        parameters.push_back(make_pair(id, type));
+
+        $$ = new SymbolInfo(type + " " + id, "VARIABLE");
         logFoundRule("parameter_list", "type_specifier ID", $$->getName());
+
         delete $1;
         delete $2;
     }
 |   type_specifier {
+        string type = $1->getName();
+
+        // Save the name and type of the parameter
+        parameters.push_back(make_pair("", type));
+
         $$ = $1;
         logFoundRule("parameter_list", "type_specifier", $$->getName());
     }
@@ -164,6 +266,7 @@ compound_statement
 :   LCURL statements RCURL {
         $$ = new SymbolInfo("{\n" + $2->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
+        
         delete $2;
     }
 |   LCURL RCURL {
@@ -176,6 +279,8 @@ var_declaration
 :   type_specifier declaration_list SEMICOLON {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + ";", "VARIABLE");
         logFoundRule("var_declaration", "type_specifier declaration_list SEMICOLON", $$->getName());
+        
+        varType.clear();
         delete $1;
         delete $2;
     }
@@ -183,22 +288,32 @@ var_declaration
 
 type_specifier
 :   INT {
+        varType = "int";
+
         $$ = new SymbolInfo("int", "VARIABLE");
         logFoundRule("type_specifier", "INT", $$->getName());
     }
 |   FLOAT {
+        varType = "float";
+
         $$ = new SymbolInfo("float", "VARIABLE");
         logFoundRule("type_specifier", "FLOAT", $$->getName());
     }
 |   DOUBLE {
+        varType = "double";
+
         $$ = new SymbolInfo("double", "VARIABLE");
         logFoundRule("type_specifier", "DOUBLE", $$->getName());
     }
 |   CHAR {
+        varType = "char";
+
         $$ = new SymbolInfo("char", "VARIABLE");
         logFoundRule("type_specifier", "CHAR", $$->getName());
     }
 |   VOID {
+        varType = "void";
+
         $$ = new SymbolInfo("void", "VARIABLE");
         logFoundRule("type_specifier", "VOID", $$->getName());
     }
@@ -206,25 +321,39 @@ type_specifier
 
 declaration_list
 :   declaration_list COMMA ID {
-        $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
+        string id = $3->getName();
+        newDeclaredVars.push_back(make_pair(id, varType));
+
+        $$ = new SymbolInfo($1->getName() + "," + id, "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID", $$->getName());
+        
         delete $1;
         delete $3;
     }
+
 |   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD {
-        $$ = new SymbolInfo($1->getName() + "," + $3->getName() + "[" + $5->getName() + "]", "VARIABLE");
+        string id = $3->getName();
+        newDeclaredVars.push_back(make_pair(id, varType + "*"));
+
+        $$ = new SymbolInfo($1->getName() + "," + id + "[" + $5->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
         delete $1;
         delete $3;
         delete $5;
     }
 |   ID {
+        newDeclaredVars.push_back(make_pair($1->getName(), varType));
+
         $$ = $1;
         logFoundRule("declaration_list", "ID", $$->getName());
     }
 |   ID LTHIRD CONST_INT RTHIRD {
-        $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
+        string id = $1->getName();
+        newDeclaredVars.push_back(make_pair(id, varType + "*"));
+
+        $$ = new SymbolInfo(id + "[" + $3->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "ID LTHIRD CONST_INT RTHIRD", $$->getName());
+
         delete $1;
         delete $3;
     }

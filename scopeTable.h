@@ -81,7 +81,7 @@ public:
      * @param name of the symbol
      * @param type of the symbol
      * @param isFunction if the symbol is of type function, set true.
-     * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
+     * @return newly inserted SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
     SymbolInfo* insert(std::string name, std::string type, bool isFunction = false) {
         int hashtableIndex = sdbmhash(name) % size;
@@ -90,7 +90,11 @@ public:
         SymbolInfo* newSymbolInfo = NULL;
 
         if(current == NULL) {
-            hashTable[hashtableIndex] = new SymbolInfo(name, type);
+            if(isFunction) {
+                hashTable[hashtableIndex] = new FunctionInfo(name, type);
+            } else {
+                hashTable[hashtableIndex] = new SymbolInfo(name, type);
+            }
         } else if(name == current->getName()) {
             // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
             return NULL;
@@ -122,6 +126,56 @@ public:
                 current->setNext(newSymbolInfo);
             }
             
+            linkedListIndex++;
+        }
+
+        // std::cout << "Inserted in ScopeTable # " << id
+        //           << " at position " << hashtableIndex << ", " << linkedListIndex << '\n';
+        return newSymbolInfo;
+    }
+
+    /**
+     * Creates a new SymbolInfo object and inserts it into the hashTable
+     * if no symbol corresponding to the name already exists in the table.
+     * @param name of the symbol
+     * @param type of the symbol
+     * @param idType type of the ID
+     * @return newly inserted SymbolInfo* if insertion is successful or NULL if unsuccessful.
+     */
+    SymbolInfo* insert(std::string name, std::string type, std::string idType) {
+        int hashtableIndex = sdbmhash(name) % size;
+        int linkedListIndex = 0;
+        SymbolInfo* current = hashTable[hashtableIndex];
+        SymbolInfo* newSymbolInfo = NULL;
+
+        if (current == NULL) {
+            hashTable[hashtableIndex] = new IdInfo(name, idType);
+        } else if (name == current->getName()) {
+            // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+            return NULL;
+        } else {
+            SymbolInfo* next = current->getNext();
+
+            while (next != NULL) {
+                if (name == current->getName()) {
+                    // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+                    return NULL;
+                }
+
+                current = next;
+                next = current->getNext();
+                linkedListIndex++;
+            }
+
+            // Check the last element
+            if (name == current->getName()) {
+                // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
+                return NULL;
+            }
+
+            newSymbolInfo = new IdInfo(name, idType);
+            current->setNext(newSymbolInfo);
+
             linkedListIndex++;
         }
 

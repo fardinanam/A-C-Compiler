@@ -10,15 +10,17 @@ private:
     std::string idType;
 
 public:
-    IdInfo(std::string name, std::string type) : SymbolInfo(name, type) {}
-    
-    IdInfo(std::string name, std::string type, std::string idType) : SymbolInfo(name, type) {
+    IdInfo(std::string name) : SymbolInfo(name, "ID") {
+        this->idType = idType;
+    }
+
+    IdInfo(std::string name, std::string idType) : IdInfo(name) {
         this->idType = idType;
     }
 
     void setIdType(std::string idType) {this->idType = idType;}
 
-    std::string getIdType() {return this->idType;}
+    std::string getIdType() const {return this->idType;}
 
     ~IdInfo() {}
 };
