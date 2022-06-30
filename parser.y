@@ -15,9 +15,10 @@
     extern int errorCount;
     extern SymbolTable symbolTable;
 
-    // list<pair<string, string> > newDeclaredVars;  // Contains variables <name, type> declared in the current scope
     list<pair<string, string> > parameters;   // Contains the parameter list <name, type> of the currently declared function
-    string varType;
+    string varType;     // Contains recent variable type
+    string funcName, funcReturnType;
+    bool hasDeclaredId = false, hasFuncDeclared = false, hasFuncDefined = false;
 
     ofstream logFile;
     ofstream errorFile;
@@ -46,27 +47,29 @@
         }
     }
 
-    // void insertNewDeclaredVars() {
-    //     list<pair<string, string> >::iterator it = newDeclaredVars.begin();
-
-    //     while(it != newDeclaredVars.end()) {            
-    //         if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
-    //             errorMessage("Multiple declaration of " + (*it).first);
-    //         }
-    //         newDeclaredVars.erase(it++);
-    //     }
-    // }
-
     /** 
     * Checks if the ID is already declared or not
     * If declared then throw an error
     * else inserts the function in the root scope
     * and updates the return type
     */
-    void handleFunctionDeclaration(string name, string returnType) {
+    void handleFuncDeclaration(string name, string returnType) {
+        funcName = name;
+        funcReturnType = returnType;
         FunctionInfo* functionInfo = (FunctionInfo*)symbolTable.insert(name, "ID", true);
+
         if(functionInfo == NULL) {
-            errorMessage("Multiple declaration of " + name);
+            SymbolInfo* symbolInfo = symbolTable.lookUp(name);
+            if(symbolInfo->getIsFunction()) {
+                hasFuncDeclared = true;
+                functionInfo = (FunctionInfo*)symbolInfo;
+
+                if(functionInfo->getIsDefined())
+                    hasFuncDefined = true;    
+            } else {
+                errorMessage("Multiple declaration of " + funcName);
+                hasDeclaredId = true;
+            }
         } else {
             functionInfo->setReturnType(returnType);
             // Add all the parameters to the function and then remove
@@ -75,85 +78,63 @@
             
             while(it != parameters.end()) {
                 functionInfo->addParameter((*it).second);
-                parameters.erase(it++);
+                it++;
             }
         }
     }
 
-    void handleFunctionDefinition(string name, string returnType) {
-        // Check if the ID name already exists in the scope
-        SymbolInfo* symbolInfo = symbolTable.lookUpCurrentScope(name);
-        bool hasDeclared = false;
-
-        if(symbolInfo != NULL) {
-            // Check if it is a function
-            // if not then throw an error
-            if(!symbolInfo->getIsFunction()) {
-                errorMessage("Multiple declaration of " + name);
-                return;
-            }
-            
-            // Else set hasDeclared
-            hasDeclared = true;
-            // If it is a function then check if it is already defined
-            // If defined then throw an error
-            if(((FunctionInfo*)symbolInfo)->getIsDefined()) {
-                errorMessage("Multiple definition of the function " + name);
-                return;
-            }
-            // else, it is a function which is declared but not yet defined
-            // check the consistency of the definition with the declaration
-            else {
-                FunctionInfo* functionInfo = (FunctionInfo*)symbolInfo;
-                // check the return type
-                if(returnType != functionInfo->getReturnType()) {
-                    errorMessage("Return type of the function " + name + " does not match with the declaration");
-                    return;
-                }
-
-                if(functionInfo->getNumberOfParameters() != parameters.size()) {
-                    errorMessage("Number of parameters does not match with the function declaration");
-                    return;
-                }
-
-                // Check if the parameter types matched with the function declaration
-                int i = 0;
-                for(pair<string, string> parameter : parameters) {
-                    if(parameter.second != functionInfo->getParameterTypeAtIdx(i)) {
-                        errorMessage("Function parameter/s does not match with the declaration");
-                        return;
-                    }
-
-                    i++;
-                }
-            } 
+    void handleFunctionDefinition() {
+        // Check if it is a function
+        // if not then throw an error
+        if(hasDeclaredId) {
+            return;
         }
-        // As the function is error free,
-        // If the function is not declared then insert it into the root scope
-        FunctionInfo* functionInfo;
-        if(!hasDeclared) {
-            functionInfo = (FunctionInfo*)symbolTable.insert(name, "ID", true);
-            functionInfo->setIsDefined();
-            functionInfo->setReturnType(returnType);
+        // if the function is already defined, throw an error
+        if(hasFuncDefined) {
+            errorMessage("Multiple definition of the function " + funcName);
+            return;
+        }
+
+        // Look up the functionInfo that has been inserted recently in the func_prototype
+        FunctionInfo* functionInfo = (FunctionInfo*)symbolTable.lookUpCurrentScope(funcName);
+        // Set isDefined
+        functionInfo->setIsDefined();
+        // else if it is a function which is declared but not yet defined
+        // check the consistency of the definition with the declaration
+        if(hasFuncDeclared) {
+            // check the return type
+            if(funcReturnType != functionInfo->getReturnType()) {
+                errorMessage("Return type of the function " + funcName + " does not match with the declaration");
+                return;
+            }
+
+            if(functionInfo->getNumberOfParameters() != parameters.size()) {
+                errorMessage("Number of parameters does not match with the function declaration");
+                return;
+            }
+
+            // Check if the parameter types matched with the function declaration
+            int i = 0;
+            for(pair<string, string> parameter : parameters) {
+                if(parameter.second != functionInfo->getParameterTypeAtIdx(i)) {
+                    errorMessage("Function parameter/s does not match with the declaration");
+                    return;
+                }
+
+                i++;
+            }
         } else {
-            functionInfo = (FunctionInfo*)symbolInfo;
-            functionInfo->setIsDefined();
-        }
-
-        list<pair<string, string> >::iterator it = parameters.begin();
-            
-        while(it != parameters.end()) {
-            if(!hasDeclared)
+            // The function has neither declared nor defined before
+            // so, set the parameter list
+            list<pair<string, string> >::iterator it = parameters.begin();
+                
+            while(it != parameters.end()) {
                 functionInfo->addParameter((*it).second);
-            
-            parameters.erase(it++);
+                
+                parameters.erase(it++);
+            }
         }
-
-        // insertNewDeclaredVars();
-
-        // // Print the symbol table and then exit the current scope
-        // logFile << symbolTable.getNonEmptyList() << "\n\n";
-        // symbolTable.exitScope();
+        
     }
 
     void printSummary() {
@@ -173,7 +154,7 @@
 %token STRING NOT LPAREN RPAREN LCURL RCURL LTHIRD RTHIRD COMMA SEMICOLON ASSIGNOP
 %token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP LOGICOP INCOP ID ARITHASSIGNOP
 
-%type<symbolInfo> program unit func_declaration func_definition parameter_list compound_statement var_declaration
+%type<symbolInfo> program unit func_prototype func_declaration func_definition parameter_list compound_statement var_declaration
 type_specifier declaration_list statements statement expression_statement variable expression
 logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
 
@@ -234,67 +215,58 @@ unit
     }
 ;
 
-func_declaration
-:   type_specifier ID LPAREN parameter_list RPAREN SEMICOLON {
+func_prototype
+:   type_specifier ID LPAREN parameter_list RPAREN {
         string returnType = $1->getName();
         string id = $2->getName();
-        $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ");", "VARIABLE");
-        logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN SEMICOLON", $$->getName());
+        $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ")", "parameter_list");
 
-        handleFunctionDeclaration(id, returnType);
-        
+        handleFuncDeclaration(id, returnType);
+
         delete $1;
         delete $2;
         delete $4;
-    }
-|   type_specifier ID LPAREN RPAREN SEMICOLON {
+}
+|   type_specifier ID LPAREN RPAREN {
         string returnType = $1->getName();
         string id = $2->getName();
-        
-        handleFunctionDeclaration(id, returnType);
-        
-        $$ = new SymbolInfo(returnType + " " + id + "();", "VARIABLE");
-        logFoundRule("func_declaration", "type_specifier ID LPAREN RPAREN SEMICOLON", $$->getName()); 
+        $$ = new SymbolInfo(returnType + " " + id + "()", "");
+
+        handleFuncDeclaration(id, returnType);
+
         delete $1;
         delete $2;
+}
+
+func_declaration
+:   func_prototype SEMICOLON {
+        $$ = new SymbolInfo($1->getName() + ";", "VARIABLE");
+        logFoundRule("func_declaration", "type_specifier ID LPAREN " + $1->getType() + " RPAREN SEMICOLON", $$->getName());
+
+        if(hasFuncDeclared)
+            errorMessage("Multiple declaration of " + funcName);
+        
+        hasDeclaredId = hasFuncDeclared = hasFuncDefined = false;
+        funcName.clear();
+        funcReturnType.clear();
+        parameters.clear();
+        delete $1;
     }
 ;
 
 func_definition
-:   type_specifier ID LPAREN parameter_list RPAREN compound_statement {
-        string returnType = $1->getName();
-        string id = $2->getName();
+:   func_prototype compound_statement {
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName(), "VARIABLE");
+        logFoundRule("func_definition", "type_specifier ID LPAREN " + $1->getType() + " RPAREN compound_statement", $$->getName());
         
-        $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
-        logFoundRule("func_definition", "type_specifier ID LPAREN parameter_list RPAREN compound_statement", $$->getName());
-        
-        handleFunctionDefinition(id, returnType);
+        handleFunctionDefinition();
 
-        // clear the parameters and var declarations
+        hasDeclaredId = hasFuncDeclared = hasFuncDefined = false;
+        funcName.clear();
+        funcReturnType.clear();
         parameters.clear();
-        // newDeclaredVars.clear();
-
         delete $1;
         delete $2;
-        delete $4;
-        delete $6;
-    }
-|   type_specifier ID LPAREN RPAREN compound_statement {
-        string returnType = $1->getName();
-        string id = $2->getName();
-
-        $$ = new SymbolInfo(returnType + " " + id + "()" + $5->getName(), "VARIABLE");
-        logFoundRule("func_definition", "type_specifier ID LPAREN RPAREN compound_statement", $$->getName());
-
-        handleFunctionDefinition(id, returnType);
-
-        // clear the parameters and var declarations
-        parameters.clear();
-        // newDeclaredVars.clear();
-
-        delete $1;
-        delete $2;
-        delete $5;
     }
 ;
 
@@ -376,6 +348,9 @@ compound_statement
 |   LCURL enter_scope RCURL {
         $$ = new SymbolInfo("{}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL RCURL", $$->getName());
+
+        logFile << symbolTable.getNonEmptyList() << "\n\n";
+        symbolTable.exitScope();
     }
 ;
 

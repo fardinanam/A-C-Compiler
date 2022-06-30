@@ -316,7 +316,13 @@ public:
             if(hashTable[i] != NULL) {
                 while(hashTable[i] != NULL) {
                     SymbolInfo* tempSymbolInfo = hashTable[i]->getNext();
-                    delete hashTable[i];
+                    if (hashTable[i]->getIsFunction())
+                        delete (FunctionInfo *)hashTable[i];
+                    else if (hashTable[i]->getType() == "ID")
+                        delete (IdInfo*)hashTable[i];
+                    else 
+                        delete hashTable[i];
+
                     hashTable[i] = tempSymbolInfo;
                 }
             }
