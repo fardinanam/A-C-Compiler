@@ -2,13 +2,13 @@
 #define COMPILER_FUNCTION_INFO_H
 
 #include <string>
-#include <list>
+#include <vector>
 #include <utility>
 #include "symbolInfo.h"
 
 class FunctionInfo : public SymbolInfo {
 private:
-    std::list<std::pair<int, std::string> > parameterList; // contains the <paramNo, type> of the parameters
+    std::vector<std::string> parameterList; // contains the types of the parameters
     std::string returnType;
     bool isDefined;
 public:
@@ -17,15 +17,24 @@ public:
         isDefined = false;
     }
 
-    void addParameter(int paramNo, std::string type) {
-        parameterList.push_back(std::make_pair(paramNo, type));
+    void addParameter(std::string type) {
+        parameterList.push_back(type);
     }
 
     void setReturnType(std::string returnType) { this->returnType = returnType; }
 
     void setIsDefined() { this->isDefined = true; }
 
-    int getNumberOfParams() const { return parameterList.size(); }
+    bool getIsDefined() { return this->isDefined; }
+
+    int getNumberOfParameters() const { return parameterList.size(); }
+
+    std::string getParameterTypeAtIdx(int i) {
+        if(i >= parameterList.size())
+            return "NONE";
+
+        return parameterList[i];
+    }
 
     std::string getReturnType() const { return this->returnType; }
 

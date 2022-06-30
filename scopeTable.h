@@ -95,6 +95,8 @@ public:
             } else {
                 hashTable[hashtableIndex] = new SymbolInfo(name, type);
             }
+
+            return hashTable[hashtableIndex];
         } else if(name == current->getName()) {
             // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
             return NULL;
@@ -149,7 +151,7 @@ public:
         SymbolInfo* newSymbolInfo = NULL;
 
         if (current == NULL) {
-            hashTable[hashtableIndex] = new IdInfo(name, idType);
+            return hashTable[hashtableIndex] = new IdInfo(name, idType);
         } else if (name == current->getName()) {
             // std::cout << '<' << name << ',' << type << "> already exists in current ScopeTable\n";
             return NULL;

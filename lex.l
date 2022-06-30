@@ -19,7 +19,7 @@ using namespace std;
 extern ofstream logFile;
 extern ofstream errorFile;
 
-SymbolTable symbolTable(29);
+SymbolTable symbolTable(7);
 
 int lineCount = 1;
 int errorCount = 0;
@@ -243,11 +243,7 @@ printf {return PRINTLN;}
 
 "{" {return LCURL;}
 
-"}" {
-    logFile << symbolTable.getNonEmptyList() << "\n";
-    symbolTable.exitScope();
-    return RCURL;
-}
+"}" {return RCURL;}
 
 "[" {return LTHIRD;}
 "]" {return RTHIRD;}

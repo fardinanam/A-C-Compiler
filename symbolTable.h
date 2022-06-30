@@ -95,7 +95,7 @@ public:
      * @param idType of the ID
      * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    SymbolInfo *insert(std::string name, std::string type, std::string idType) {
+    SymbolInfo* insert(std::string name, std::string type, std::string idType) {
         if(type != "ID") {
             std::cout << "Invalid type. \"ID\" expected\n";
             return NULL;

@@ -46,6 +46,17 @@
         }
     }
 
+    void insertNewDeclaredVars() {
+        list<pair<string, string> >::iterator it = newDeclaredVars.begin();
+
+        while(it != newDeclaredVars.end()) {            
+            if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
+                errorMessage("Multiple declaration of " + (*it).first);
+            }
+            newDeclaredVars.erase(it++);
+        }
+    }
+
     /** 
     * Checks if the ID is already declared or not
     * If declared then throw an error
@@ -54,7 +65,6 @@
     */
     void handleFunctionDeclaration(string name, string returnType) {
         FunctionInfo* functionInfo = (FunctionInfo*)symbolTable.insert(name, "ID", true);
-
         if(functionInfo == NULL) {
             errorMessage("Multiple declaration of " + name);
         } else {
@@ -62,13 +72,95 @@
             // Add all the parameters to the function and then remove
             // those from the parameter list
             list<pair<string, string> >::iterator it = parameters.begin();
-            int i = 1;
+            
             while(it != parameters.end()) {
-                functionInfo->addParameter(i, (*it).second);
+                functionInfo->addParameter((*it).second);
                 parameters.erase(it++);
-                i++;
             }
         }
+    }
+
+    void handleFunctionDefinition(string name, string returnType) {
+        // Check if the ID name already exists in the scope
+        SymbolInfo* symbolInfo = symbolTable.lookUpCurrentScope(name);
+        bool hasDeclared = false;
+
+        if(symbolInfo != NULL) {
+            cout << "In if of " + name + "\n";
+            symbolTable.printCurrentScopeTable();
+            // Check if it is a function
+            // if not then throw an error
+            if(!symbolInfo->getIsFunction()) {
+                errorMessage("Multiple declaration of " + name);
+                return;
+            }
+            
+            // Else set hasDeclared
+            hasDeclared = true;
+            // If it is a function then check if it is already defined
+            // If defined then throw an error
+            if(((FunctionInfo*)symbolInfo)->getIsDefined()) {
+                errorMessage("Multiple definition of the function " + name);
+                return;
+            }
+            // else, it is a function which is declared but not yet defined
+            // check the consistency of the definition with the declaration
+            else {
+                FunctionInfo* functionInfo = (FunctionInfo*)symbolInfo;
+                // check the return type
+                if(returnType != functionInfo->getReturnType()) {
+                    errorMessage("Return type of the function " + name + " does not match with the declaration");
+                    return;
+                }
+
+                if(functionInfo->getNumberOfParameters() != parameters.size()) {
+                    errorMessage("Number of parameters does not match with the function declaration");
+                    return;
+                }
+
+                // Check if the parameter types matched with the function declaration
+                int i = 0;
+                for(pair<string, string> parameter : parameters) {
+                    if(parameter.second != functionInfo->getParameterTypeAtIdx(i)) {
+                        errorMessage("Function parameter/s does not match with the declaration");
+                        return;
+                    }
+
+                    i++;
+                }
+            } 
+        }
+        // As the function is error free,
+        // If the function is not declared then insert it into the root scope
+        FunctionInfo* functionInfo;
+        if(!hasDeclared) {
+            functionInfo = (FunctionInfo*)symbolTable.insert(name, "ID", true);
+            functionInfo->setIsDefined();
+            functionInfo->setReturnType(returnType);
+        } else {
+            functionInfo = (FunctionInfo*)symbolInfo;
+            functionInfo->setIsDefined();
+        }
+        // create new scope and insert all the parameters and newDeclaredVars in the scope
+        symbolTable.enterScope();
+
+        list<pair<string, string> >::iterator it = parameters.begin();
+            
+        while(it != parameters.end()) {
+            if(!hasDeclared)
+                functionInfo->addParameter((*it).second);
+            
+            if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
+                errorMessage("Multiple declaration of " + (*it).first);
+            }
+            parameters.erase(it++);
+        }
+
+        insertNewDeclaredVars();
+
+        // Print the symbol table and then exit the current scope
+        logFile << symbolTable.getNonEmptyList() << "\n\n";
+        symbolTable.exitScope();
     }
 
     void printSummary() {
@@ -137,6 +229,7 @@ unit
 :   var_declaration {
         $$ = $1;
         logFoundRule("unit", "var_declaration", $$->getName());
+        insertNewDeclaredVars();
     }
 |   func_declaration {
         $$ = $1;
@@ -152,11 +245,11 @@ func_declaration
 :   type_specifier ID LPAREN parameter_list RPAREN SEMICOLON {
         string returnType = $1->getName();
         string id = $2->getName();
-        
-        handleFunctionDeclaration(id, returnType);
-        
         $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ");", "VARIABLE");
         logFoundRule("func_declaration", "type_specifier ID LPAREN parameter_list RPAREN SEMICOLON", $$->getName());
+
+        handleFunctionDeclaration(id, returnType);
+        
         delete $1;
         delete $2;
         delete $4;
@@ -176,20 +269,17 @@ func_declaration
 
 func_definition
 :   type_specifier ID LPAREN parameter_list RPAREN compound_statement {
-        // Check if the function is already in the root scope
-        // If yes then check if it is defined or not
-        // If  yes then throw an error
-        // If it is declared but not defined then 
-        // create new scope and insert all the parameters and newDeclaredVars in the scope
-        // If it is neither declared nor defined then
-        // insert the function in the root scope and 
-        // create new scope and insert all the parameters and newDeclaredVars in the scope
-        // Print the symbol table and then exit the current scope
+        string returnType = $1->getName();
         string id = $2->getName();
-        symbolTable.insert(id, "ID", true);
-
-        $$ = new SymbolInfo($1->getName() + " " + id + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
+        
+        $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ")" + $6->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN parameter_list RPAREN compound_statement", $$->getName());
+        
+        handleFunctionDefinition(id, returnType);
+
+        // clear the parameters and var declarations
+        parameters.clear();
+        newDeclaredVars.clear();
 
         delete $1;
         delete $2;
@@ -197,14 +287,17 @@ func_definition
         delete $6;
     }
 |   type_specifier ID LPAREN RPAREN compound_statement {
+        string returnType = $1->getName();
         string id = $2->getName();
-        symbolTable.insert(id, "ID", true);
-        // handleNewScope();
 
-        $$ = new SymbolInfo($1->getName() + " " + id + "()" + $5->getName(), "VARIABLE");
+        $$ = new SymbolInfo(returnType + " " + id + "()" + $5->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN RPAREN compound_statement", $$->getName());
 
-        // handleExitScope();
+        handleFunctionDefinition(id, returnType);
+
+        // clear the parameters and var declarations
+        parameters.clear();
+        newDeclaredVars.clear();
 
         delete $1;
         delete $2;
