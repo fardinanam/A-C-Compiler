@@ -1,8 +1,8 @@
 int x,y,z; float a;
 
-int foo();
+void foo();
 
-int var(int a, int a){
+int var(int a, int b){
 	return a+b;
 }
 

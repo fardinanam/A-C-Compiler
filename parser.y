@@ -15,7 +15,7 @@
     extern int errorCount;
     extern SymbolTable symbolTable;
 
-    list<pair<string, string> > newDeclaredVars;  // Contains variables <name, type> declared in the current scope
+    // list<pair<string, string> > newDeclaredVars;  // Contains variables <name, type> declared in the current scope
     list<pair<string, string> > parameters;   // Contains the parameter list <name, type> of the currently declared function
     string varType;
 
@@ -40,22 +40,22 @@
     }
 
     void insertId(string idName, string type) {
-        SymbolInfo* idInfo = symbolTable.insert(idName, type);
+        SymbolInfo* idInfo = symbolTable.insert(idName, "ID", type);
         if(idInfo == NULL) {
             errorMessage("Multiple declaration of " + idName);
         }
     }
 
-    void insertNewDeclaredVars() {
-        list<pair<string, string> >::iterator it = newDeclaredVars.begin();
+    // void insertNewDeclaredVars() {
+    //     list<pair<string, string> >::iterator it = newDeclaredVars.begin();
 
-        while(it != newDeclaredVars.end()) {            
-            if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
-                errorMessage("Multiple declaration of " + (*it).first);
-            }
-            newDeclaredVars.erase(it++);
-        }
-    }
+    //     while(it != newDeclaredVars.end()) {            
+    //         if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
+    //             errorMessage("Multiple declaration of " + (*it).first);
+    //         }
+    //         newDeclaredVars.erase(it++);
+    //     }
+    // }
 
     /** 
     * Checks if the ID is already declared or not
@@ -86,8 +86,6 @@
         bool hasDeclared = false;
 
         if(symbolInfo != NULL) {
-            cout << "In if of " + name + "\n";
-            symbolTable.printCurrentScopeTable();
             // Check if it is a function
             // if not then throw an error
             if(!symbolInfo->getIsFunction()) {
@@ -141,8 +139,6 @@
             functionInfo = (FunctionInfo*)symbolInfo;
             functionInfo->setIsDefined();
         }
-        // create new scope and insert all the parameters and newDeclaredVars in the scope
-        symbolTable.enterScope();
 
         list<pair<string, string> >::iterator it = parameters.begin();
             
@@ -150,17 +146,14 @@
             if(!hasDeclared)
                 functionInfo->addParameter((*it).second);
             
-            if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL) {
-                errorMessage("Multiple declaration of " + (*it).first);
-            }
             parameters.erase(it++);
         }
 
-        insertNewDeclaredVars();
+        // insertNewDeclaredVars();
 
-        // Print the symbol table and then exit the current scope
-        logFile << symbolTable.getNonEmptyList() << "\n\n";
-        symbolTable.exitScope();
+        // // Print the symbol table and then exit the current scope
+        // logFile << symbolTable.getNonEmptyList() << "\n\n";
+        // symbolTable.exitScope();
     }
 
     void printSummary() {
@@ -229,7 +222,7 @@ unit
 :   var_declaration {
         $$ = $1;
         logFoundRule("unit", "var_declaration", $$->getName());
-        insertNewDeclaredVars();
+        // insertNewDeclaredVars();
     }
 |   func_declaration {
         $$ = $1;
@@ -279,7 +272,7 @@ func_definition
 
         // clear the parameters and var declarations
         parameters.clear();
-        newDeclaredVars.clear();
+        // newDeclaredVars.clear();
 
         delete $1;
         delete $2;
@@ -297,13 +290,27 @@ func_definition
 
         // clear the parameters and var declarations
         parameters.clear();
-        newDeclaredVars.clear();
+        // newDeclaredVars.clear();
 
         delete $1;
         delete $2;
         delete $5;
     }
 ;
+
+enter_scope
+:   {
+    symbolTable.enterScope();
+
+    // Insert the parameters in the scope
+    list<pair<string, string> >::iterator it = parameters.begin();
+
+    while(it != parameters.end()) {        
+        if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL)
+            errorMessage("Multiple declaration of the parameter name " + (*it).first);
+        it++;
+    }
+}
 
 parameter_list
 :   parameter_list COMMA type_specifier ID {
@@ -356,13 +363,17 @@ parameter_list
 ;
 
 compound_statement
-:   LCURL statements RCURL {
-        $$ = new SymbolInfo("{\n" + $2->getName() + "\n}", "VARIABLE");
+:   LCURL enter_scope statements RCURL {
+        $$ = new SymbolInfo("{\n" + $3->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
         
-        delete $2;
+        // Print the symbol table and then exit the current scope
+        logFile << symbolTable.getNonEmptyList() << "\n\n";
+        symbolTable.exitScope();
+
+        delete $3;
     }
-|   LCURL RCURL {
+|   LCURL enter_scope RCURL {
         $$ = new SymbolInfo("{}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL RCURL", $$->getName());
     }
@@ -415,7 +426,8 @@ type_specifier
 declaration_list
 :   declaration_list COMMA ID {
         string id = $3->getName();
-        newDeclaredVars.push_back(make_pair(id, varType));
+        // newDeclaredVars.push_back(make_pair(id, varType));
+        insertId(id, varType);
 
         $$ = new SymbolInfo($1->getName() + "," + id, "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID", $$->getName());
@@ -426,7 +438,8 @@ declaration_list
 
 |   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD {
         string id = $3->getName();
-        newDeclaredVars.push_back(make_pair(id, varType + "*"));
+        // newDeclaredVars.push_back(make_pair(id, varType + "*"));
+        insertId(id, varType + "*");
 
         $$ = new SymbolInfo($1->getName() + "," + id + "[" + $5->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
@@ -435,14 +448,16 @@ declaration_list
         delete $5;
     }
 |   ID {
-        newDeclaredVars.push_back(make_pair($1->getName(), varType));
+        // newDeclaredVars.push_back(make_pair($1->getName(), varType));
+        insertId($1->getName(), varType);
 
         $$ = $1;
         logFoundRule("declaration_list", "ID", $$->getName());
     }
 |   ID LTHIRD CONST_INT RTHIRD {
         string id = $1->getName();
-        newDeclaredVars.push_back(make_pair(id, varType + "*"));
+        // newDeclaredVars.push_back(make_pair(id, varType + "*"));
+        insertId(id, varType + "*");
 
         $$ = new SymbolInfo(id + "[" + $3->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "ID LTHIRD CONST_INT RTHIRD", $$->getName());
