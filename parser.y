@@ -17,8 +17,9 @@
     
     extern string toUpper(string str);
 
-    list<pair<string, string> > parameters;   // Contains the parameter list <name, type> of the currently declared function
-    string varType;     // Contains recent variable type
+    list<pair<string, string> > parameters; // Contains the parameter list <name, type> of the currently declared function
+    list<SymbolInfo*> argList;              // Contans argument list while calling a function
+    string varType;                         // Contains recent variable type
     string funcName, funcReturnType;
     bool hasDeclaredId = false, hasFuncDeclared = false, hasFuncDefined = false;
 
@@ -56,10 +57,25 @@
         string lType = lSymbol->getType();
         if(lType != rSymbol->getType()) {
             if(lType[lType.size()-1] == '*')
-                errorMessage("Type Mismatch: " + lSymbol->getName() + " is an array");
-            else
+                errorMessage("Type Mismatch, " + lSymbol->getName() + " is an array");
+            else {
+                cout << lSymbol->getName() << " " << lType << ":" << rSymbol->getName() << " " << rSymbol->getType() << endl;
                 errorMessage("Type Mismatch");
+            }
         }
+    }
+
+    string typeCast(string lType, string rType) {
+        if(lType == "CONST_FLOAT" || rType == "CONST_FLOAT")
+            return "CONST_FLOAT";
+        else if(lType == "CONST_INT" || rType == "CONST_INT")
+            return "CONST_INT";
+        else if(lType != rType) {
+            cout << lType << " " << rType << endl;
+            errorMessage("Type Mismatch");
+        }
+        
+        return lType;
     }
 
     /** 
@@ -92,7 +108,7 @@
             list<pair<string, string> >::iterator it = parameters.begin();
             
             while(it != parameters.end()) {
-                functionInfo->addParameter((*it).second);
+                functionInfo->addParameter("CONST_" + toUpper((*it).second));
                 it++;
             }
         }
@@ -131,25 +147,15 @@
             // Check if the parameter types matched with the function declaration
             int i = 0;
             for(pair<string, string> parameter : parameters) {
-                if(parameter.second != functionInfo->getParameterTypeAtIdx(i)) {
+                if(("CONST_" + toUpper(parameter.second)) != functionInfo->getParameterTypeAtIdx(i)) {
+                    cout << parameter.second << " " << functionInfo->getParameterTypeAtIdx(i) << endl;
                     errorMessage("Function parameter/s does not match with the declaration");
                     return;
                 }
 
                 i++;
             }
-        } else {
-            // The function has neither declared nor defined before
-            // so, set the parameter list
-            list<pair<string, string> >::iterator it = parameters.begin();
-                
-            while(it != parameters.end()) {
-                functionInfo->addParameter((*it).second);
-                
-                parameters.erase(it++);
-            }
-        }
-        
+        }        
     }
 
     void printSummary() {
@@ -232,7 +238,7 @@ unit
 
 func_prototype
 :   type_specifier ID LPAREN parameter_list RPAREN {
-        string returnType = $1->getName();
+        string returnType = "CONST_" + toUpper($1->getName());
         string id = $2->getName();
         $$ = new SymbolInfo(returnType + " " + id + "(" + $4->getName() + ")", "parameter_list");
 
@@ -243,7 +249,7 @@ func_prototype
         delete $4;
 }
 |   type_specifier ID LPAREN RPAREN {
-        string returnType = $1->getName();
+        string returnType = "CONST_" + toUpper($1->getName());
         string id = $2->getName();
         $$ = new SymbolInfo(returnType + " " + id + "()", "");
 
@@ -293,7 +299,7 @@ enter_scope
     list<pair<string, string> >::iterator it = parameters.begin();
 
     while(it != parameters.end()) {        
-        if(symbolTable.insert((*it).first, "ID", (*it).second) == NULL)
+        if(symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second)) == NULL)
             errorMessage("Multiple declaration of the parameter name " + (*it).first);
         it++;
     }
@@ -607,14 +613,22 @@ expression
         logFoundRule("expression", "logic_expression", $$->getName());
     }
 |   variable ASSIGNOP logic_expression {
-        $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), $1->getType());
+        string lType = $1->getType();
+        string rType = $3->getType();
+        string type = lType;
+        
         logFoundRule("expression", "variable ASSIGNOP logic_expression", $$->getName());
 
         // Undeclared variables are detected in 'variable' rule
         // and are handled there
-        if($1->getType() != "UNDEC")
-            typeCheck($1, $3);
+        if($1->getType() != "UNDEC"){
+            if(lType == "CONST_FLOAT" && (rType == "CONST_FLOAT" || rType == "CONST_INT"))
+                type = "CONST_FLOAT";
+            else 
+                typeCheck($1, $3);
+        }
 
+        $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), type);
         delete $1;
         delete $3;
     }
@@ -647,7 +661,7 @@ rel_expression
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "CONST_INT");
         logFoundRule("rel_expression", "simple_expression RELOP simple_expression", $$->getName());
 
-        typeCheck($1, $3);
+        typeCast($1->getType(), $3->getType());
 
         delete $1;
         delete $2;
@@ -661,10 +675,8 @@ simple_expression
         logFoundRule("simple_expression", "term", $$->getName());
     }
 |   simple_expression ADDOP term {
-        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), $3->getType());
+        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), typeCast($1->getType(), $3->getType()));
         logFoundRule("simple_expression", "simple_expression ADDOP term", $$->getName());
-
-        typeCheck($1, $3);
 
         delete $1;
         delete $2;
@@ -679,15 +691,19 @@ term
     }
 |   term MULOP unary_expression {
         string mulop = $2->getName();
+        string type = $1->getType();
         
-        $$ = new SymbolInfo($1->getName() + mulop + $3->getName(), $1->getType());
+        
         logFoundRule("term", "term MULOP unary_expression", $$->getName());
 
         if(mulop == "%" && ($1->getType() != "CONST_INT" || $3->getType() != "CONST_INT")) {
             errorMessage("Non-Integer operand on modulus operator");
         } else {
-            typeCheck($1, $3);
+            type = typeCast($1->getType(), $3->getType());
         }
+
+        $$ = new SymbolInfo($1->getName() + mulop + $3->getName(), type);
+        
         delete $1;
         delete $2;
         delete $3;
@@ -718,6 +734,7 @@ factor
         logFoundRule("factor", "variable", $$->getName());
     }
 |   ID LPAREN argument_list RPAREN {
+        // It's a function call
         string id = $1->getName();
         string varName = id + "(" + $3->getName() + ")";
     
@@ -730,14 +747,41 @@ factor
             errorMessage(id + " is not a function");
             $$ = new SymbolInfo(varName, "VARIABLE");
         } else if(symbolInfo->getIsFunction()) {
+            FunctionInfo* functionInfo = (FunctionInfo*)symbolInfo;
             // if it is a function then set the return type as the type of the expression
-            $$ = new SymbolInfo(varName, ((FunctionInfo*)symbolInfo)->getReturnType());
+            $$ = new SymbolInfo(varName, functionInfo->getReturnType());
+            // check the consistency of the prameters
+            if(functionInfo->getNumberOfParameters() != argList.size())
+                errorMessage("Total number of arguments mismatch with declaration in function " + id);
+            else {
+                int i = 0;
+                list<SymbolInfo*>::iterator it = argList.begin();
+                
+                while(it != argList.end()) {
+                    SymbolInfo* tempSymbol = new SymbolInfo("dummy", functionInfo->getParameterTypeAtIdx(i));
+                    typeCheck(*it, tempSymbol);
+                    
+                    delete tempSymbol;
+                    delete (*it);
+                    argList.erase(it++);
+                    i++;
+                }
+            }
+
         } else {
             // then it must be an id. Set the id type as the type of the expression
             errorMessage(id + " is not a function");
             $$ = new SymbolInfo(varName, ((IdInfo*)symbolInfo)->getIdType());
         }
-            
+        
+        // Clear the argList
+        list<SymbolInfo*>::iterator it = argList.begin();
+                
+        while(it != argList.end()) {
+            delete (*it);
+            argList.erase(it++);
+        }
+
         delete $1;
         delete $3;
     }
@@ -781,12 +825,15 @@ argument_list
 
 arguments
 :   arguments COMMA logic_expression {
+        argList.push_back(new SymbolInfo($3->getName(), $3->getType()));
         $$ = new SymbolInfo($1->getName() + ", " + $3->getName(), "VARIABLE");
         logFoundRule("arguments", "arguments COMMA logic_expression", $$->getName());
+
         delete $1;
         delete $3;
     }
 |   logic_expression {
+        argList.push_back(new SymbolInfo($1->getName(), $1->getType()));
         $$ = $1;
         logFoundRule("arguments", "logic_expression", $$->getName());
     }
