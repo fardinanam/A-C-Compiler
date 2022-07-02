@@ -14,6 +14,8 @@
     extern int lineCount;   
     extern int errorCount;
     extern SymbolTable symbolTable;
+    
+    extern string toUpper(string str);
 
     list<pair<string, string> > parameters;   // Contains the parameter list <name, type> of the currently declared function
     string varType;     // Contains recent variable type
@@ -25,10 +27,8 @@
 
     int yyparse(void);
     int yylex(void);
-    void yyerror(string s) {
-        cout << "Line no. " << lineCount << ": " <<  s << "\n";
-        errorCount++;
-    }
+
+    
 
     void logFoundRule(string variable, string rule, string matchedString) {
         logFile << "Line " << lineCount << ": " << variable << " : " << rule << "\n\n";
@@ -38,12 +38,27 @@
     void errorMessage(string message) {
         errorCount++;
         errorFile << "Error at line " << lineCount << ": " << message << "\n\n";
+        logFile << "Error at line " << lineCount << ": " << message << "\n\n";
+    }
+
+    void yyerror(string s) {
+        errorMessage(s);
     }
 
     void insertId(string idName, string type) {
-        SymbolInfo* idInfo = symbolTable.insert(idName, "ID", type);
+        SymbolInfo* idInfo = symbolTable.insert(idName, "ID", "CONST_" + toUpper(type));
         if(idInfo == NULL) {
             errorMessage("Multiple declaration of " + idName);
+        }
+    }
+
+    void typeCheck(SymbolInfo* lSymbol, SymbolInfo* rSymbol) {
+        string lType = lSymbol->getType();
+        if(lType != rSymbol->getType()) {
+            if(lType[lType.size()-1] == '*')
+                errorMessage("Type Mismatch: " + lSymbol->getName() + " is an array");
+            else
+                errorMessage("Type Mismatch");
         }
     }
 
@@ -413,17 +428,32 @@ declaration_list
 
 |   declaration_list COMMA ID LTHIRD CONST_INT RTHIRD {
         string id = $3->getName();
-        // newDeclaredVars.push_back(make_pair(id, varType + "*"));
         insertId(id, varType + "*");
 
         $$ = new SymbolInfo($1->getName() + "," + id + "[" + $5->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
+
         delete $1;
         delete $3;
         delete $5;
     }
+/* |   declaration_list COMMA ID LTHIRD error RTHIRD {
+        string id = $3->getName();
+        insertId(id, varType + "*");
+        
+        $$ = new SymbolInfo($1->getName() + "," + id + "[]", "VARIABLE");
+
+        errorMessage("Expression inside third brackets not an integer");
+        
+        
+
+        delete $1;
+        delete $3;
+        
+        yyclearin;
+        yyerrok;
+} */
 |   ID {
-        // newDeclaredVars.push_back(make_pair($1->getName(), varType));
         insertId($1->getName(), varType);
 
         $$ = $1;
@@ -431,7 +461,6 @@ declaration_list
     }
 |   ID LTHIRD CONST_INT RTHIRD {
         string id = $1->getName();
-        // newDeclaredVars.push_back(make_pair(id, varType + "*"));
         insertId(id, varType + "*");
 
         $$ = new SymbolInfo(id + "[" + $3->getName() + "]", "VARIABLE");
@@ -486,6 +515,7 @@ statement
 |   IF LPAREN expression RPAREN statement ELSE statement {
         $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else" + $7->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement ELSE statement", $$->getName());
+
         delete $3;
         delete $5;
         delete $7;
@@ -493,6 +523,7 @@ statement
 |   WHILE LPAREN expression RPAREN statement {
         $$ = new SymbolInfo("while(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
         logFoundRule("statement", "WHILE LPAREN expression RPAREN statement", $$->getName());
+
         delete $3;
         delete $5;
     }
@@ -502,7 +533,7 @@ statement
         delete $3;
     }
 |   RETURN expression SEMICOLON {
-        $$ = new SymbolInfo("return " + $2->getName() + ";", "VARIABLE");
+        $$ = new SymbolInfo("return " + $2->getName() + ";", $2->getType());
         logFoundRule("statement", "RETURN expression SEMICOLON", $$->getName());
         delete $2;
     }
@@ -514,7 +545,7 @@ expression_statement
         logFoundRule("expression_statement", "SEMICOLON", $$->getName());
     }
 |   expression SEMICOLON {
-        $$ = new SymbolInfo($1->getName() + ";", "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + ";", $1->getType());
         logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
         delete $1;
     }
@@ -522,12 +553,49 @@ expression_statement
 
 variable
 :   ID {
-        $$ = $1;
-        logFoundRule("variable", "ID", $$->getName());
+        string id = $1->getName();
+        logFoundRule("variable", "ID", id);
+
+        SymbolInfo* symbolInfo = symbolTable.lookUp(id);
+        if(symbolInfo == NULL) {
+            errorMessage("Undeclared variable " + id);
+            $$ = new SymbolInfo(id, "UNDEC");
+        } else {
+            $$ = new SymbolInfo(symbolInfo->getName(), ((IdInfo*)symbolInfo)->getIdType());
+        }
+        
+        delete $1;
     }
 |   ID LTHIRD expression RTHIRD {
-        $$ = new SymbolInfo($1->getName() + "[" + $3->getName() + "]", "VARIABLE");
+        string id = $1->getName();
+        string varType = "VARIABLE";
+        SymbolInfo* symbolInfo = symbolTable.lookUp(id);
+
+        
         logFoundRule("variable", "ID LTHIRD expression RTHIRD", $$->getName());
+        // check if the id is an array or not
+        if(symbolInfo == NULL) {
+            errorMessage("Undeclared variable " + id);
+        } else if(symbolInfo->getType() == "ID") {
+            IdInfo* idInfo = (IdInfo*)symbolInfo;
+            string idType = idInfo->getIdType();
+
+            if(idType.size() > 0 && idType[idType.size()-1] != '*')
+                errorMessage("Type Mismatch: " + id + " is not an array");
+            else {
+                // the type of the variable will be the original type of the array elements
+                // So, truncate the '*'
+                varType = idType.substr(0, idType.size() - 1);
+            }
+        } else {
+            errorMessage("Type Mismatch: " + id + " is not an array");
+        }
+        
+        if($3->getType() != "CONST_INT")
+            errorMessage("Expression inside third bracket not an integer");
+        
+        $$ = new SymbolInfo(id + "[" + $3->getName() + "]", varType);
+
         delete $1;
         delete $3;
     }
@@ -539,8 +607,14 @@ expression
         logFoundRule("expression", "logic_expression", $$->getName());
     }
 |   variable ASSIGNOP logic_expression {
-        $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), $1->getType());
         logFoundRule("expression", "variable ASSIGNOP logic_expression", $$->getName());
+
+        // Undeclared variables are detected in 'variable' rule
+        // and are handled there
+        if($1->getType() != "UNDEC")
+            typeCheck($1, $3);
+
         delete $1;
         delete $3;
     }
@@ -552,8 +626,12 @@ logic_expression
         logFoundRule("logic_expression", "rel_expression", $$->getName());
     }
 |   rel_expression LOGICOP rel_expression {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "CONST_INT");
         logFoundRule("logic_expression", "rel_expression LOGICOP rel_expression", $$->getName());
+
+        // No need for a type check because, it is okay to have any arbitrary const on 
+        // both sides of logical operator
+
         delete $1;
         delete $2;
         delete $3;
@@ -566,8 +644,11 @@ rel_expression
         logFoundRule("rel_expression", "simple_expression", $$->getName());
     }
 |   simple_expression RELOP simple_expression {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "CONST_INT");
         logFoundRule("rel_expression", "simple_expression RELOP simple_expression", $$->getName());
+
+        typeCheck($1, $3);
+
         delete $1;
         delete $2;
         delete $3;
@@ -580,8 +661,11 @@ simple_expression
         logFoundRule("simple_expression", "term", $$->getName());
     }
 |   simple_expression ADDOP term {
-        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), $3->getType());
         logFoundRule("simple_expression", "simple_expression ADDOP term", $$->getName());
+
+        typeCheck($1, $3);
+
         delete $1;
         delete $2;
         delete $3;
@@ -594,8 +678,16 @@ term
         logFoundRule("term", "unary_expression", $$->getName());
     }
 |   term MULOP unary_expression {
-        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "VARIABLE");
+        string mulop = $2->getName();
+        
+        $$ = new SymbolInfo($1->getName() + mulop + $3->getName(), $1->getType());
         logFoundRule("term", "term MULOP unary_expression", $$->getName());
+
+        if(mulop == "%" && ($1->getType() != "CONST_INT" || $3->getType() != "CONST_INT")) {
+            errorMessage("Non-Integer operand on modulus operator");
+        } else {
+            typeCheck($1, $3);
+        }
         delete $1;
         delete $2;
         delete $3;
@@ -604,13 +696,13 @@ term
 
 unary_expression
 :   ADDOP unary_expression {
-        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + $2->getName(), $2->getType());
         logFoundRule("unary_expression", "ADDOP unary_expression", $$->getName());
         delete $1;
         delete $2;
     }
 |   NOT unary_expression {
-        $$ = new SymbolInfo("!" + $2->getName(), "VARIABLE");
+        $$ = new SymbolInfo("!" + $2->getName(), $2->getType());
         logFoundRule("unary_expression", "NOT unary_expression", $$->getName());
         delete $2;
     }
@@ -626,13 +718,31 @@ factor
         logFoundRule("factor", "variable", $$->getName());
     }
 |   ID LPAREN argument_list RPAREN {
-        $$ = new SymbolInfo($1->getName() + "(" + $3->getName() + ")", "VARIABLE");
-        logFoundRule("factor", "ID LPAREN argument_list RPAREN", $$->getName());
+        string id = $1->getName();
+        string varName = id + "(" + $3->getName() + ")";
+    
+        logFoundRule("factor", "ID LPAREN argument_list RPAREN", varName);
+    
+        SymbolInfo* symbolInfo = symbolTable.lookUp(id);
+        
+        if(symbolInfo == NULL) {
+            // if it was not declared before
+            errorMessage(id + " is not a function");
+            $$ = new SymbolInfo(varName, "VARIABLE");
+        } else if(symbolInfo->getIsFunction()) {
+            // if it is a function then set the return type as the type of the expression
+            $$ = new SymbolInfo(varName, ((FunctionInfo*)symbolInfo)->getReturnType());
+        } else {
+            // then it must be an id. Set the id type as the type of the expression
+            errorMessage(id + " is not a function");
+            $$ = new SymbolInfo(varName, ((IdInfo*)symbolInfo)->getIdType());
+        }
+            
         delete $1;
         delete $3;
     }
 |   LPAREN expression RPAREN {
-        $$ = new SymbolInfo("(" + $2->getName() + ")", "VARIABLE");
+        $$ = new SymbolInfo("(" + $2->getName() + ")", $2->getType());
         logFoundRule("factor", "LPAREN expression RPAREN", $$->getName());
         delete $2;
     }
@@ -645,13 +755,13 @@ factor
         logFoundRule("factor", "CONST_FLOAT", $$->getName());
     }
 |   variable INCOP %prec POSTFIX_INCOP {
-        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + $2->getName(), $1->getType());
         logFoundRule("factor", "variable INCOP", $$->getName());
         delete $1;
         delete $2;
     }
 |   INCOP variable %prec PREFIX_INCOP {
-        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + $2->getName(), $2->getType());
         logFoundRule("factor", "INCOP variable", $$->getName());
         delete $1;
         delete $2;
@@ -663,7 +773,7 @@ argument_list
         $$ = $1;
         logFoundRule("argument_list", "arguments", $$->getName());
     }
-|       {
+|   {
         $$ = new SymbolInfo("", "VARIABLE");
         logFoundRule("argument_list", "arguments", "");
     }

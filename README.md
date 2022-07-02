@@ -16,6 +16,16 @@ relational operators like, a && b && c, a < b < c`.
 
 ## Syntax Analysis
 
+Non terminal types:
+- VARIABLE
+- UNDEC
+- CONST_INT
+- CONST_FLOAT
+- CONST_CHAR
+- CONST_INT*
+- CONST_FLOAT*
+- CONST_CHAR*
+
 TODO 1:
 ```cpp
 declaration_list
