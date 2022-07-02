@@ -19,6 +19,8 @@ using namespace std;
 extern ofstream logFile;
 extern ofstream errorFile;
 
+extern void errorMessage(string message);
+
 SymbolTable symbolTable(7);
 
 int lineCount = 1;
@@ -72,7 +74,8 @@ void logErrorMessage(string errorMessage, string symbol) {
 
 void logErrorMessage(string errorMessage, string symbol, int lineNo) {
     errorCount++;
-    // logFile << "Line no. "<< lineNo << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
+    logFile << "Line no. "<< lineNo << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
+    errorFile << "Line no. "<< lineNo << ": ERROR: " << errorMessage << " " << symbol << "\n\n";
 }
 
 void writeTokenFile(string token) {
@@ -82,24 +85,6 @@ void writeTokenFile(string token) {
 void writeTokenFile(string token, string charLiteral) {
     // tokenFile << "<" << token << ", " << charLiteral << "> ";
 }
-
-// void insertSymbol(string token, string lexeme) {
-//     if(symbolTable.insert(lexeme, token)) 
-//         logFile << symbolTable.getNonEmptyList() << '\n';
-//     else
-//         logFile << lexeme + " already exists in current ScopeTable\n\n";
-// }
-
-// void exitScope() {
-//     symbolTable.exitScope();
-//     logFile << symbolTable.getNonEmptyList() << '\n';
-// }
-
-// void printSummary() {
-//     logFile << symbolTable.getNonEmptyList() << '\n';
-//     logFile << "Total lines: " << lineCount << "\n";
-//     logFile << "Total errors: " << errorCount << "\n";
-// }
 
 char extractChar(string str) {
     char c;
@@ -194,14 +179,21 @@ printf {return PRINTLN;}
 }
 
 {FLOAT}{ID}+ {
-    logErrorMessage("Invalid Suffix on number or invalid prefix on ID", yytext);
+    errorMessage("Invalid Suffix on number or invalid prefix on ID " + string(yytext));
+    // TODO: return something and handle it in syntax analyser
 }
 (({INT}(.{INT}?)?)|(.{INT}?))([eE][+-]?{FLOAT}+) {
-    logErrorMessage("Ill formed number", yytext);
+    errorMessage("Ill formed number" + string(yytext));
+
+    yylval.symbolInfo = new SymbolInfo(yytext, "CONST_FLOAT");
+    return CONST_FLOAT;
 }
 
 {DIGIT}*"."({DIGIT}*([eE][+-]?)?{DIGIT}*"."{DIGIT}*)+ {
-    logErrorMessage("Too many decimal point for the character sequence", yytext);
+    errorMessage("Too many decimal point for the character sequence " + string(yytext));
+
+    yylval.symbolInfo = new SymbolInfo(yytext, "CONST_FLOAT");
+    return CONST_FLOAT;
 }
 
 [+-] {
@@ -262,9 +254,11 @@ printf {return PRINTLN;}
     lexeme += yytext;
 
     if(charLiteral.length() == 0) {    
-        logErrorMessage("Empty character constant", lexeme);
+        errorMessage("Empty character constant " + lexeme);
+
         lexeme.clear();
         charLiteral.clear();
+
         BEGIN INITIAL;
     } else if(charLiteral.length() == 1 && charLiteral[0] == '\\') {
         charLiteral += yytext;
@@ -272,15 +266,14 @@ printf {return PRINTLN;}
         char c = extractChar(charLiteral);
 
         if(c == -1) {
-            logErrorMessage("Unknown escape sequence: ", lexeme);
+            errorMessage("Unknown escape sequence: " + lexeme);
         } else {
             string token = "CONST_CHAR";
             charLiteral = "";
             charLiteral.push_back(c);
             
-            writeTokenFile(token, charLiteral);
-            logFoundMessage(token, lexeme, charLiteral);
-            // insertSymbol(token, lexeme);
+            // writeTokenFile(token, charLiteral);
+            // logFoundMessage(token, lexeme, charLiteral);
         }
         
         lexeme.clear();
@@ -288,7 +281,7 @@ printf {return PRINTLN;}
 
         BEGIN INITIAL;
     } else if(charLiteral.length() > 1) {
-        logErrorMessage("Multi character constant char", lexeme);
+        errorMessage("Multi character constant char " + lexeme);
         
         lexeme.clear();
         charLiteral.clear();
@@ -303,8 +296,9 @@ printf {return PRINTLN;}
 }
 
 <CHAR_STATE>{NEWLINE} {
-    logErrorMessage("Unfinished character", lexeme);
+    errorMessage("Unfinished character " + lexeme);
     lineCount++;
+
     lexeme.clear();
     charLiteral.clear();
 
@@ -312,7 +306,8 @@ printf {return PRINTLN;}
 }
 
 <CHAR_STATE><<EOF>> {
-    logErrorMessage("Unfinished character", lexeme);
+    errorMessage("Unfinished character " + lexeme);
+
     lexeme.clear();
     charLiteral.clear();
     // printSummary();
@@ -335,9 +330,11 @@ printf {return PRINTLN;}
     char c = extractChar(yytext);
 
     if(c == -1) {
-        logErrorMessage("Unknown escape sequence in string: ", lexeme);
+        errorMessage("Unknown escape sequence in string: " + lexeme);
+
         charLiteral.clear();
         lexeme.clear();
+
         BEGIN INITIAL;
     } else if(c == '\b') {
         // backspace
@@ -357,11 +354,12 @@ printf {return PRINTLN;}
     lexeme += yytext;
     
     charLiteral = "\"" + charLiteral + "\"";
-    writeTokenFile(token, charLiteral);
-    logFoundMessage(token, lexeme, charLiteral, tempLineNo);
+    // writeTokenFile(token, charLiteral);
+    // logFoundMessage(token, lexeme, charLiteral, tempLineNo);
     
     charLiteral.clear();
     lexeme.clear();
+
     BEGIN INITIAL;
 }
 
@@ -369,8 +367,10 @@ printf {return PRINTLN;}
     lexeme += yytext;
     logErrorMessage("Unterminated string", lexeme, tempLineNo);
     lineCount++;
+
     lexeme.clear();
     charLiteral.clear();
+
     BEGIN INITIAL;
 }
 
@@ -382,7 +382,9 @@ printf {return PRINTLN;}
     return 0;
 }
 
-"//"[^\r\n]* logFoundMessage("COMMENT", yytext);
+"//"[^\r\n]* {
+    //logFoundMessage("COMMENT", yytext);
+}
 
 "//"[^\r\n]*\\{NEWLINE} {
     tempLineNo = lineCount;
@@ -398,7 +400,7 @@ printf {return PRINTLN;}
 
 <MLINE_COMMENT_STATE1>[^\r\n]* {
     lexeme += yytext;
-    logFoundMessage("COMMENT", lexeme, tempLineNo);
+    // logFoundMessage("COMMENT", lexeme, tempLineNo);
     lexeme.clear();
     BEGIN INITIAL;
 }
@@ -416,7 +418,7 @@ printf {return PRINTLN;}
 
 <MLINE_COMMENT_STATE2>"*/"[ \t]* {
     lexeme += "*/";
-    logFoundMessage("COMMENT", lexeme, tempLineNo);
+    // logFoundMessage("COMMENT", lexeme, tempLineNo);
     lexeme.clear();
     BEGIN INITIAL;
 }
@@ -441,7 +443,7 @@ printf {return PRINTLN;}
     return 0;
 }
 
-[^ \t\n] {logErrorMessage("Unrecongnized character", yytext);}
+[^ \t\n] {errorMessage("Unrecongnized character " + string(yytext));}
 [ \t\f\r\v]+ {}
 {NEWLINE} lineCount++;
 

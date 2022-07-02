@@ -21,7 +21,7 @@
     list<SymbolInfo*> argList;              // Contans argument list while calling a function
     string varType;                         // Contains recent variable type
     string funcName, funcReturnType;
-    bool hasDeclaredId = false, hasFuncDeclared = false, hasFuncDefined = false;
+    bool hasDeclaredId = false, hasFuncDeclared = false, hasFuncDefined = false, hasFoundReturn = false;
 
     ofstream logFile;
     ofstream errorFile;
@@ -53,27 +53,40 @@
         }
     }
 
-    void typeCheck(SymbolInfo* lSymbol, SymbolInfo* rSymbol) {
+    /**
+     * @param lSymbol left symbolInfo
+     * @param rSymbol right symbolInfo
+     * @param message show this error message if type mismatch occurs
+     */
+    void typeCheck(SymbolInfo* lSymbol, SymbolInfo* rSymbol, string message) {
         string lType = lSymbol->getType();
+        string rType = rSymbol->getType();
+
+        if(lType == "UNDEC" || rType == "UNDEC")
+            return;
+            
         if(lType != rSymbol->getType()) {
             if(lType[lType.size()-1] == '*')
-                errorMessage("Type Mismatch, " + lSymbol->getName() + " is an array");
+                errorMessage(message +", " + lSymbol->getName() + " is an array");
+            else if(rType[rType.size()-1] == '*')
+                errorMessage(message + ", " + rSymbol->getName() + " is an array");
             else {
-                cout << lSymbol->getName() << " " << lType << ":" << rSymbol->getName() << " " << rSymbol->getType() << endl;
-                errorMessage("Type Mismatch");
+                cout << lSymbol->getName() << " " << lType << ":" << rSymbol->getName() << " " << rType << endl;
+                errorMessage(message);
             }
         }
     }
 
-    string typeCast(string lType, string rType) {
+    string typeCast(SymbolInfo* lSymbol, SymbolInfo* rSymbol) {
+        string lType = lSymbol->getType();
+        string rType = rSymbol->getType();
+
         if(lType == "CONST_FLOAT" || rType == "CONST_FLOAT")
             return "CONST_FLOAT";
         else if(lType == "CONST_INT" || rType == "CONST_INT")
             return "CONST_INT";
-        else if(lType != rType) {
-            cout << lType << " " << rType << endl;
-            errorMessage("Type Mismatch");
-        }
+        else 
+            typeCheck(lSymbol, rSymbol, "Type Mismatch");
         
         return lType;
     }
@@ -135,12 +148,12 @@
         if(hasFuncDeclared) {
             // check the return type
             if(funcReturnType != functionInfo->getReturnType()) {
-                errorMessage("Return type of the function " + funcName + " does not match with the declaration");
+                errorMessage("Return type mismatch with function declaration in function " + funcName);
                 return;
             }
 
             if(functionInfo->getNumberOfParameters() != parameters.size()) {
-                errorMessage("Number of parameters does not match with the function declaration");
+                errorMessage("Total number of arguments mismatch with declaration in function " + funcName);
                 return;
             }
 
@@ -156,6 +169,10 @@
                 i++;
             }
         }        
+
+        if(funcReturnType != "CONST_VOID" && !hasFoundReturn) {
+            errorMessage("Function definition ended without any return statement");
+        }
     }
 
     void printSummary() {
@@ -282,7 +299,7 @@ func_definition
         
         handleFunctionDefinition();
 
-        hasDeclaredId = hasFuncDeclared = hasFuncDefined = false;
+        hasDeclaredId = hasFuncDeclared = hasFuncDefined = hasFoundReturn = false;
         funcName.clear();
         funcReturnType.clear();
         parameters.clear();
@@ -300,7 +317,7 @@ enter_scope
 
     while(it != parameters.end()) {        
         if(symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second)) == NULL)
-            errorMessage("Multiple declaration of the parameter name " + (*it).first);
+            errorMessage("Multiple declaration of " + (*it).first + " in parameter");
         it++;
     }
 }
@@ -316,6 +333,9 @@ parameter_list
         $$ = new SymbolInfo($1->getName() + "," + type + " " + id, "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier ID", $$->getName());
 
+        if(type == "void")
+            errorMessage("Variable type cannot be void");
+
         delete $1;
         delete $3;
         delete $4;
@@ -328,6 +348,10 @@ parameter_list
 
         $$ = new SymbolInfo($1->getName() + "," + type, "VARIABLE");
         logFoundRule("parameter_list", "parameter_list COMMA type_specifier", $$->getName());
+        
+        if(type == "void")
+            errorMessage("Variable type cannot be void");
+
         delete $1;
         delete $3;
     }
@@ -341,6 +365,9 @@ parameter_list
         $$ = new SymbolInfo(type + " " + id, "VARIABLE");
         logFoundRule("parameter_list", "type_specifier ID", $$->getName());
 
+        if(type == "void")
+            errorMessage("Variable type cannot be void");
+
         delete $1;
         delete $2;
     }
@@ -352,6 +379,9 @@ parameter_list
 
         $$ = $1;
         logFoundRule("parameter_list", "type_specifier", $$->getName());
+
+        if(type == "void")
+            errorMessage("Variable type cannot be void");
     }
 ;
 
@@ -379,7 +409,7 @@ var_declaration
 :   type_specifier declaration_list SEMICOLON {
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + ";", "VARIABLE");
         logFoundRule("var_declaration", "type_specifier declaration_list SEMICOLON", $$->getName());
-        
+
         varType.clear();
         delete $1;
         delete $2;
@@ -428,6 +458,9 @@ declaration_list
         $$ = new SymbolInfo($1->getName() + "," + id, "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID", $$->getName());
         
+        if(varType == "void")
+            errorMessage("Variable type cannot be void");
+
         delete $1;
         delete $3;
     }
@@ -438,6 +471,9 @@ declaration_list
 
         $$ = new SymbolInfo($1->getName() + "," + id + "[" + $5->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "declaration_list COMMA ID LTHIRD CONST_INT RTHIRD", $$->getName());
+
+        if(varType == "void")
+            errorMessage("Variable type cannot be void");
 
         delete $1;
         delete $3;
@@ -464,6 +500,9 @@ declaration_list
 
         $$ = $1;
         logFoundRule("declaration_list", "ID", $$->getName());
+
+        if(varType == "void")
+            errorMessage("Variable type cannot be void");
     }
 |   ID LTHIRD CONST_INT RTHIRD {
         string id = $1->getName();
@@ -471,6 +510,9 @@ declaration_list
 
         $$ = new SymbolInfo(id + "[" + $3->getName() + "]", "VARIABLE");
         logFoundRule("declaration_list", "ID LTHIRD CONST_INT RTHIRD", $$->getName());
+
+        if(varType == "void")
+            errorMessage("Variable type cannot be void");
 
         delete $1;
         delete $3;
@@ -510,8 +552,7 @@ statement
         delete $4;
         delete $5;
         delete $7;
-    }
-    
+    }  
 |   IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE {
         $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement", $$->getName());
@@ -534,13 +575,34 @@ statement
         delete $5;
     }
 |   PRINTLN LPAREN ID RPAREN SEMICOLON {
-        $$ = new SymbolInfo("printf(" + $3->getName() + ");", "VARIABLE");
+        string id = $3->getName();
+        $$ = new SymbolInfo("printf(" + id + ");", "VARIABLE");
         logFoundRule("statement", "PRINTLN LPAREN ID RPAREN SEMICOLON", $$->getName());
+
+        if(symbolTable.lookUp(id) == NULL) 
+            errorMessage("Undeclared variable " + id);
+
         delete $3;
     }
 |   RETURN expression SEMICOLON {
-        $$ = new SymbolInfo("return " + $2->getName() + ";", $2->getType());
-        logFoundRule("statement", "RETURN expression SEMICOLON", $$->getName());
+        hasFoundReturn = true;
+        string type = $2->getType();
+        string name = "return " + $2->getName() + ";";
+        
+        logFoundRule("statement", "RETURN expression SEMICOLON", name);
+
+        if(funcReturnType != ""){
+            if(funcReturnType == "CONST_FLOAT" && (type == "CONST_FLOAT" || type == "CONST_INT"))
+                type = "CONST_FLOAT";
+            else {
+                SymbolInfo* tempSymbol = new SymbolInfo("dummy", funcReturnType);
+                typeCheck(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
+
+                delete tempSymbol;
+            }
+        }
+            
+        $$ = new SymbolInfo(name, type);
         delete $2;
     }
 ;
@@ -582,19 +644,22 @@ variable
         // check if the id is an array or not
         if(symbolInfo == NULL) {
             errorMessage("Undeclared variable " + id);
+            varType = "UNDEC";
         } else if(symbolInfo->getType() == "ID") {
             IdInfo* idInfo = (IdInfo*)symbolInfo;
             string idType = idInfo->getIdType();
 
-            if(idType.size() > 0 && idType[idType.size()-1] != '*')
-                errorMessage("Type Mismatch: " + id + " is not an array");
-            else {
+            if(idType.size() > 0 && idType[idType.size()-1] != '*') {
+                errorMessage("Type Mismatch, " + id + " not an array");
+                varType = idType;
+            } else {
                 // the type of the variable will be the original type of the array elements
                 // So, truncate the '*'
                 varType = idType.substr(0, idType.size() - 1);
-            }
+            }            
         } else {
-            errorMessage("Type Mismatch: " + id + " is not an array");
+            errorMessage("Type Mismatch, " + id + " not an array");
+            varType = symbolInfo->getType();
         }
         
         if($3->getType() != "CONST_INT")
@@ -625,7 +690,7 @@ expression
             if(lType == "CONST_FLOAT" && (rType == "CONST_FLOAT" || rType == "CONST_INT"))
                 type = "CONST_FLOAT";
             else 
-                typeCheck($1, $3);
+                typeCheck($1, $3, "Type Mismatch");
         }
 
         $$ = new SymbolInfo($1->getName() + " = " + $3->getName(), type);
@@ -661,7 +726,7 @@ rel_expression
         $$ = new SymbolInfo($1->getName() + " " + $2->getName() + " " + $3->getName(), "CONST_INT");
         logFoundRule("rel_expression", "simple_expression RELOP simple_expression", $$->getName());
 
-        typeCast($1->getType(), $3->getType());
+        typeCast($1, $3);
 
         delete $1;
         delete $2;
@@ -675,7 +740,7 @@ simple_expression
         logFoundRule("simple_expression", "term", $$->getName());
     }
 |   simple_expression ADDOP term {
-        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), typeCast($1->getType(), $3->getType()));
+        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), typeCast($1, $3));
         logFoundRule("simple_expression", "simple_expression ADDOP term", $$->getName());
 
         delete $1;
@@ -692,17 +757,22 @@ term
 |   term MULOP unary_expression {
         string mulop = $2->getName();
         string type = $1->getType();
-        
+        string ueName = $3->getName();
         
         logFoundRule("term", "term MULOP unary_expression", $$->getName());
 
-        if(mulop == "%" && ($1->getType() != "CONST_INT" || $3->getType() != "CONST_INT")) {
-            errorMessage("Non-Integer operand on modulus operator");
+        if(mulop == "%") {
+            if($1->getType() != "CONST_INT" || $3->getType() != "CONST_INT")
+                errorMessage("Non-Integer operand on modulus operator");
+            else if(ueName == "0")
+                errorMessage("Modulus by zero");
+        } else if(mulop == "%" && ueName == "0") {
+                errorMessage("Division by zero");
         } else {
-            type = typeCast($1->getType(), $3->getType());
+            type = typeCast($1, $3);
         }
 
-        $$ = new SymbolInfo($1->getName() + mulop + $3->getName(), type);
+        $$ = new SymbolInfo($1->getName() + mulop + ueName, type);
         
         delete $1;
         delete $2;
@@ -744,22 +814,22 @@ factor
         
         if(symbolInfo == NULL) {
             // if it was not declared before
-            errorMessage(id + " is not a function");
-            $$ = new SymbolInfo(varName, "VARIABLE");
+            errorMessage("Undeclared function " + id);
+            $$ = new SymbolInfo(varName, "UNDEC");
         } else if(symbolInfo->getIsFunction()) {
             FunctionInfo* functionInfo = (FunctionInfo*)symbolInfo;
             // if it is a function then set the return type as the type of the expression
             $$ = new SymbolInfo(varName, functionInfo->getReturnType());
             // check the consistency of the prameters
             if(functionInfo->getNumberOfParameters() != argList.size())
-                errorMessage("Total number of arguments mismatch with declaration in function " + id);
+                errorMessage("Total number of arguments mismatch in function " + id);
             else {
                 int i = 0;
                 list<SymbolInfo*>::iterator it = argList.begin();
                 
                 while(it != argList.end()) {
                     SymbolInfo* tempSymbol = new SymbolInfo("dummy", functionInfo->getParameterTypeAtIdx(i));
-                    typeCheck(*it, tempSymbol);
+                    typeCheck(*it, tempSymbol, to_string(1 + i) + "th argument mismatch in function " + id);
                     
                     delete tempSymbol;
                     delete (*it);
@@ -797,6 +867,10 @@ factor
 |   CONST_FLOAT {
         $$ = $1;
         logFoundRule("factor", "CONST_FLOAT", $$->getName());
+    }
+|   CONST_CHAR {
+        $$ = $1;
+        logFoundRule("factor", "CONST_CHAR", $$->getName());
     }
 |   variable INCOP %prec POSTFIX_INCOP {
         $$ = new SymbolInfo($1->getName() + $2->getName(), $1->getType());
