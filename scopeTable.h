@@ -286,16 +286,18 @@ public:
     std::string getNonEmptyBuckets() {
         std::string temp = "ScopeTable # " + id + "\n";
         for(int i = 0; i < size; i++) {
+            bool found = false;
             if(hashTable[i] != NULL) {
                 temp += " " + std::to_string(i) + " --> ";
 
                 SymbolInfo *next = hashTable[i];
                 while(next != NULL) {
+                    found = true;
                     temp += "< " + next->getName() + " : " + next->getType() + "> ";
                     next = next->getNext();
                 }
-
-                temp += '\n';
+                if(found)
+                    temp += '\n';
             }
         }
 
