@@ -1,12 +1,16 @@
 # A C Compiler
 
+## Introduction
+
+This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
+
 ## Lexical Analyser
 
-### Returns the following tokens to the parser
+### Lexer returns the following tokens to the parser:
 
 - Keywords
 
-        Matched lexeme  :       Returned Tokens
+        Matched lexeme  :       Returned Token
 
         if              :       IF
         else            :       ELSE
@@ -35,7 +39,7 @@
 
 - Operators and punctuators
 
-        Matched Lexeme          :       Returned Tokens
+        Matched Lexeme          :       Returned Token
 
         +, -                    :       ADDOP
         *, /, %                 :       MULOP
@@ -62,7 +66,7 @@
         STRING
 
 - **Whitespaces and comments are identified by the lexer but these are not passed to the parser.**
-### Lexer also counts the line numbers when it finds a newline
+- **Lexer also counts the line numbers when it finds a newline.**
 
 ### Lexical Errors
 
