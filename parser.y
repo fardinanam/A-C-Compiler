@@ -13,9 +13,10 @@
     extern FILE* yyin;
     extern int lineCount;   
     extern int errorCount;
-    extern SymbolTable symbolTable;
     
     extern string toUpper(string str);
+
+    SymbolTable symbolTable(29);
 
     list<pair<string, string> > parameters; // Contains the parameter list <name, type> of the currently declared function
     list<SymbolInfo*> argList;              // Contans argument list while calling a function
@@ -49,7 +50,8 @@
     }
 
     void yyerror(string s) {
-        errorMessage("Syntax error");
+        errorMessage("Syntax Error");
+        // cout << s << endl;
     }
 
     void insertId(string idName, string type) {
@@ -77,7 +79,6 @@
             else if(rType[rType.size()-1] == '*')
                 errorMessage(message + ", " + rSymbol->getName() + " is an array");
             else {
-                cout << lSymbol->getName() << " " << lType << ":" << rSymbol->getName() << " " << rType << endl;
                 errorMessage(message);
             }
         }
@@ -125,31 +126,6 @@
 
                 if(functionInfo->getIsDefined())
                     hasFuncDefined = true;    
-                else {
-                    if(funcReturnType != functionInfo->getReturnType()) {
-                        // check the return types
-                        errorMessage("Return type mismatch with function declaration in function " + funcName);
-                    }
-
-                    if(functionInfo->getNumberOfParameters() != parameters.size()) {
-                        errorMessage("Total number of arguments mismatch with declaration in function " + funcName);
-                    }
-
-                    // Check if the parameter types matched with the function declaration
-                    int i = 0;
-                    for(pair<string, string> parameter : parameters) {
-                        if(("CONST_" + toUpper(parameter.second)) != functionInfo->getParameterTypeAtIdx(i)) {
-                            cout << parameter.second << " " << functionInfo->getParameterTypeAtIdx(i) << endl;
-                            errorMessage("Function parameter/s does not match with the declaration");
-                            return;
-                        }
-                        // function definition must have parameter names
-                        if(parameter.first == "")
-                            errorMessage(to_string(i + 1) + "th parameter's name not given in function definition of " + funcName);
-
-                        i++;
-                    }
-                }
             } else {
                 errorMessage("Multiple declaration of " + funcName);
                 hasDeclaredId = true;
@@ -190,7 +166,7 @@
         // Set isDefined
         functionInfo->setIsDefined();      
 
-        if(funcReturnType != "CONST_VOID" && !hasFoundReturn) {
+        if(functionInfo->getReturnType() != "CONST_VOID" && !hasFoundReturn) {
             errorMessage("Function definition ended without any return statement");
         }
     }
@@ -232,6 +208,8 @@ logic_expression rel_expression simple_expression term unary_expression factor a
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
+%nonassoc LOWER_THAN_ID
+%nonassoc ID
 
 %%
 
@@ -326,11 +304,27 @@ func_declaration
         logMatchedString($$->getName());
         delete $1;
     }
+|   func_prototype error {
+        symbolTable.enterScope();
+        symbolTable.exitScope();
+
+        $$ = $1;
+
+        if(hasFuncDeclared)
+            errorMessage("Multiple declaration of " + funcName);
+        
+        hasDeclaredId = hasFuncDeclared = hasFuncDefined = false;
+        funcName.clear();
+        funcReturnType.clear();
+        parameters.clear();
+
+        logMatchedString($$->getName());
+}
 ;
 
 func_definition
 :   func_prototype compound_statement {
-        $$ = new SymbolInfo($1->getName() + " " + $2->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN " + $1->getType() + " RPAREN compound_statement");
         
         handleFunctionDefinition();
@@ -348,16 +342,41 @@ func_definition
 
 enter_scope
 :   {
-    symbolTable.enterScope();
+        if(hasFuncDeclared) {
+            FunctionInfo* functionInfo = (FunctionInfo*)symbolTable.lookUp(funcName);
 
-    // Insert the parameters in the scope
-    list<pair<string, string> >::iterator it = parameters.begin();
+            // check the return type
+            if(funcReturnType != functionInfo->getReturnType()) {
+                errorMessage("Return type mismatch with function declaration in function " + funcName);
+            }
 
-    while(it != parameters.end()) {      
-        if((*it).first != "" && symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second)) == NULL)
-            errorMessage("Multiple declaration of " + (*it).first + " in parameter");
-        it++;
-    }
+            if(functionInfo->getNumberOfParameters() != parameters.size()) {
+                errorMessage("Total number of arguments mismatch with declaration in function " + funcName);
+            }
+
+            // Check if the parameter types matched with the function declaration
+            int i = 0;
+            for(pair<string, string> parameter : parameters) {
+                if(("CONST_" + toUpper(parameter.second)) != functionInfo->getParameterTypeAtIdx(i)) {
+                    errorMessage("Function parameter/s does not match with the declaration");
+                }
+                // function definition must have parameter names
+                if(parameter.first == "")
+                    errorMessage(to_string(i + 1) + "th parameter's name not given in function definition of " + funcName);
+                i++;
+            }
+        }     
+
+        symbolTable.enterScope();
+
+        // Insert the parameters in the scope
+        list<pair<string, string> >::iterator it = parameters.begin();
+
+        while(it != parameters.end()) {      
+            if((*it).first != "" && symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second)) == NULL)
+                errorMessage("Multiple declaration of " + (*it).first + " in parameter");
+            it++;
+        }
 }
 
 parameter_list
@@ -516,7 +535,8 @@ declaration_list
         delete $1;
         delete $3;
     }
-|   declaration_list error ID {        
+|   declaration_list error ID {       
+        // cout << "Error with " << $3->getName() << endl;  
         $$ = $1;
         delete $3;
 }
@@ -535,7 +555,7 @@ declaration_list
         delete $3;
         delete $5;
     }
-/* |   declaration_list COMMA ID LTHIRD error RTHIRD {
+|   declaration_list COMMA ID LTHIRD error RTHIRD {
         string id = $3->getName();
         insertId(id, varType + "*");
         
@@ -543,14 +563,9 @@ declaration_list
 
         errorMessage("Expression inside third brackets not an integer");
         
-        
-
         delete $1;
         delete $3;
-        
-        yyclearin;
-        yyerrok;
-} */
+}
 |   ID {
         insertId($1->getName(), varType);
 
@@ -613,7 +628,7 @@ statement
         delete $5;
     }
 |   IF LPAREN expression RPAREN statement ELSE statement {
-        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else" + $7->getName(), "VARIABLE");
+        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else\n" + $7->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement ELSE statement", $$->getName());
 
         delete $3;
@@ -639,12 +654,43 @@ statement
 
         delete $3;
     }
+|   PRINTLN LPAREN ID RPAREN error {
+        string id = $3->getName();
+        $$ = new SymbolInfo("printf(" + id + ")", "VARIABLE");
+
+        if(symbolTable.lookUp(id) == NULL) 
+            errorMessage("Undeclared variable " + id);
+
+        logMatchedString($$->getName());
+
+        delete $3;
+}
 |   RETURN expression SEMICOLON {
         hasFoundReturn = true;
         string type = $2->getType();
         string name = "return " + $2->getName() + ";";
         
         logFoundRule("statement", "RETURN expression SEMICOLON");
+
+        if(funcReturnType != ""){
+            if(funcReturnType == "CONST_FLOAT" && (type == "CONST_FLOAT" || type == "CONST_INT"))
+                type = "CONST_FLOAT";
+            else {
+                SymbolInfo* tempSymbol = new SymbolInfo("dummy", funcReturnType);
+                typeCheck(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
+
+                delete tempSymbol;
+            }
+        }
+            
+        logMatchedString(name);
+        $$ = new SymbolInfo(name, type);
+        delete $2;
+    }
+|   RETURN expression error {
+        hasFoundReturn = true;
+        string type = $2->getType();
+        string name = "return " + $2->getName();
 
         if(funcReturnType != ""){
             if(funcReturnType == "CONST_FLOAT" && (type == "CONST_FLOAT" || type == "CONST_INT"))
@@ -671,6 +717,12 @@ expression_statement
 |   expression SEMICOLON {
         $$ = new SymbolInfo($1->getName() + ";", $1->getType());
         logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
+        delete $1;
+    }
+|   expression error {
+        // cout << "Error at expression error " << $1->getName() << "\n";
+        $$ = new SymbolInfo("", "ERROR");
+
         delete $1;
     }
 ;
@@ -721,7 +773,7 @@ variable
         }
         
         if($3->getType() != "CONST_INT")
-            errorMessage("Expression inside third bracket not an integer");
+            errorMessage("Expression inside third brackets not an integer");
         
         logMatchedString(name);
 
@@ -764,6 +816,7 @@ expression
         delete $3;
     }
 |   variable ASSIGNOP error {
+        // cout << "Error at variable ASSIGNOP\n";
         $$ = $1;
         logMatchedString($1->getName());
 }
@@ -857,19 +910,7 @@ simple_expression
         delete $2;
         delete $3;
     }
-|   simple_expression ADDOP error term {
-        string lType = $1->getType();
 
-        if(isVoidFunc(lType)) {
-            // Do nothing
-            // Error message handled in isVoidFunction
-            // type is already equals rType
-        }
-
-        $$ = $1;
-        delete $2;
-        delete $4;
-}
 ;
 
 term
@@ -1043,7 +1084,7 @@ argument_list
 arguments
 :   arguments COMMA logic_expression {
         argList.push_back(new SymbolInfo($3->getName(), $3->getType()));
-        $$ = new SymbolInfo($1->getName() + ", " + $3->getName(), "VARIABLE");
+        $$ = new SymbolInfo($1->getName() + "," + $3->getName(), "VARIABLE");
         logFoundRule("arguments", "arguments COMMA logic_expression", $$->getName());
 
         delete $1;

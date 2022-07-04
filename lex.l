@@ -21,8 +21,6 @@ extern ofstream errorFile;
 
 extern void errorMessage(string message);
 
-SymbolTable symbolTable(7);
-
 int lineCount = 1;
 int errorCount = 0;
 int tempLineNo;
