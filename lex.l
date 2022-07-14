@@ -162,7 +162,7 @@ continue {return CONTINUE;}
 printf {return PRINTLN;}
 
 {ID} {
-    yylval.symbolInfo = new SymbolInfo(yytext ,"ID");
+    yylval.symbolInfo = new SymbolInfo(yytext, "ID");
     return ID;
 }
 
@@ -178,7 +178,8 @@ printf {return PRINTLN;}
 
 {FLOAT}{ID}+ {
     errorMessage("Invalid Suffix on number or invalid prefix on ID " + string(yytext));
-    // TODO: return something and handle it in syntax analyser
+    yylval.symbolInfo = new SymbolInfo(yytext, "ID");
+    return ID;
 }
 (({INT}(.{INT}?)?)|(.{INT}?))([eE][+-]?{FLOAT}+) {
     errorMessage("Ill formed number" + string(yytext));

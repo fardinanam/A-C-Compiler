@@ -41,12 +41,12 @@ This is a C compiler that performs some error checking with the help of Flex (le
 
         Matched Lexeme          :       Returned Token
 
-        +, -                    :       ADDOP
-        *, /, %                 :       MULOP
-        ++, --                  :       INCOP
-        <, <=, >, >=, ==, !=    :       RELOP
+        +, -                    :       ADDOP           *
+        *, /, %                 :       MULOP           *
+        ++, --                  :       INCOP           *
+        <, <=, >, >=, ==, !=    :       RELOP           *
         =                       :       ASSIGNOP
-        &&, ||                  :       LOGICOP
+        &&, ||                  :       LOGICOP         *
         !                       :       NOT
         (                       :       LPAREN
         )                       :       RPAREN
@@ -59,16 +59,19 @@ This is a C compiler that performs some error checking with the help of Flex (le
 
 - Identifiers
 
-        ID
+        ID                                              *
 
 - Strings
 
         STRING
 
+
 - **Whitespaces and comments are identified by the lexer but these are not passed to the parser.**
 - **Lexer also counts the line numbers when it finds a newline.**
 
-### Lexical Errors
+*Tokens with * are passed as SymbolInfo objects to the parser. The SymbolInfo contains <matched lexeme, returned token> of the lexeme* 
+
+### Lexical Errors:
 
 Detect lexical errors in the source program and reports it along with corresponding line no. Detects the following type of errors:
 - Too many decimal point error for character sequence like `1.2.345`
@@ -95,7 +98,7 @@ relational operators like, `a && b && c`, `a < b < c`.
 - No `break` statement and `switch-case` statement will be used.
 
 ### Error recovery:
-Some common syntax errors are handled and recovered so that the perser does not stop persing.
+Some common syntax errors are handled and recovered so that the parser does not stop parsing.
 
 ## Semantic Analyser
 ### Following semantics are checked in the compiler:
@@ -155,6 +158,7 @@ Used to check the consistancy of different terms and expressions with variable t
         CONST_INT*
         CONST_FLOAT*
         CONST_CHAR* 
+
 - Other data types:
         
         UNDEC (If an ID is found which has never been declared)

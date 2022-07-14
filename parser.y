@@ -55,13 +55,19 @@
     }
 
     void insertId(string idName, string type) {
-        SymbolInfo* idInfo = symbolTable.insert(idName, "ID", "CONST_" + toUpper(type));
-        if(idInfo == NULL) {
-            errorMessage("Multiple declaration of " + idName);
+        if(symbolTable.hasFunctionWithName(idName)) {
+            errorMessage("Multiple declaration of " + idName + ". " + idName + " is a function");
+        } else {
+            SymbolInfo* idInfo = symbolTable.insert(idName, "ID", "CONST_" + toUpper(type));
+            if(idInfo == NULL) {
+                errorMessage("Multiple declaration of " + idName);
+            }
         }
     }
 
     /**
+     * Checks if the two symbols have the same type or not.
+     * If the types are not the same, it shows the message.
      * @param lSymbol left symbolInfo
      * @param rSymbol right symbolInfo
      * @param message show this error message if type mismatch occurs
@@ -84,16 +90,59 @@
         }
     }
 
-    string typeCast(SymbolInfo* lSymbol, SymbolInfo* rSymbol) {
+    /**
+     * Checks if the right symbols can be type casted to left symbol or not.
+     * If type casting is not possible, it shows the message.
+     * @param lSymbol left symbolInfo
+     * @param rSymbol right symbolInfo
+     * @param message show this error message if type casting fails
+     */
+    string typeCast(SymbolInfo* lSymbol, SymbolInfo* rSymbol, string message) {
         string lType = lSymbol->getType();
         string rType = rSymbol->getType();
 
-        if(lType == "CONST_FLOAT" || rType == "CONST_FLOAT")
+        // if any of the two is an array then there should be no type casting
+        if(lType[lType.size()-1] == '*' || rType[rType.size()-1] == '*') 
+            typeCheck(lSymbol, rSymbol, message);
+        // if lType is float then rType can be any of float, int or char
+        // and it will be type casted to float
+        else if(lType == "CONST_FLOAT")
             return "CONST_FLOAT";
-        else if(lType == "CONST_INT" || rType == "CONST_INT")
+        // if lType is int then rType can be any of int or char
+        // and it will be type casted to int
+        else if(lType == "CONST_INT" && (rType == "CONST_CHAR"  || rType == "CONST_INT"))
             return "CONST_INT";
+        // else lType and rType have to be the same
         else 
-            typeCheck(lSymbol, rSymbol, "Type Mismatch");
+            typeCheck(lSymbol, rSymbol, message);
+        
+        return lType;
+    }
+
+    /**
+     * Checks if any of the symbol can be type casted to upper type
+     * to match with the other symbol type.
+     * If type casting is not possible, it shows the message.
+     * @param lSymbol left symbolInfo
+     * @param rSymbol right symbolInfo
+     * @param message show this error message if type casting fails
+     */
+    string typeCastIgnoreSide(SymbolInfo* lSymbol, SymbolInfo* rSymbol, string message) {
+        string lType = lSymbol->getType();
+        string rType = rSymbol->getType();
+
+        // if any of the two is an array then there should be no type casting
+        if(lType[lType.size()-1] == '*' || rType[rType.size()-1] == '*') 
+            typeCheck(lSymbol, rSymbol, message);
+        // if any of the two is float then return float
+        else if(lType == "CONST_FLOAT" || rType == "CONST_FLOAT")
+            return "CONST_FLOAT";
+        // if any of the two is int then return int
+        else if(lType == "CONST_INT" || rType == "CONST_INT")
+            return "CONST_INT";   
+        // else lType and rType have to be the same
+        else 
+            typeCheck(lSymbol, rSymbol, message);    
         
         return lType;
     }
@@ -166,8 +215,9 @@
         // Set isDefined
         functionInfo->setIsDefined();      
 
-        if(functionInfo->getReturnType() != "CONST_VOID" && !hasFoundReturn) {
-            errorMessage("Function definition ended without any return statement");
+        if(funcReturnType == functionInfo->getReturnType() && functionInfo->getName() != "main" &&
+            functionInfo->getReturnType() != "CONST_VOID" && !hasFoundReturn) {
+            errorMessage("Function definition of non void return type ended without any return statement");
         }
     }
 
@@ -208,8 +258,6 @@ logic_expression rel_expression simple_expression term unary_expression factor a
 
 %nonassoc LOWER_THAN_ELSE
 %nonassoc ELSE
-%nonassoc LOWER_THAN_ID
-%nonassoc ID
 
 %%
 
@@ -501,18 +549,6 @@ type_specifier
         $$ = new SymbolInfo("float", "VARIABLE");
         logFoundRule("type_specifier", "FLOAT", $$->getName());
     }
-|   DOUBLE {
-        varType = "double";
-
-        $$ = new SymbolInfo("double", "VARIABLE");
-        logFoundRule("type_specifier", "DOUBLE", $$->getName());
-    }
-|   CHAR {
-        varType = "char";
-
-        $$ = new SymbolInfo("char", "VARIABLE");
-        logFoundRule("type_specifier", "CHAR", $$->getName());
-    }
 |   VOID {
         varType = "void";
 
@@ -584,6 +620,14 @@ declaration_list
 
         delete $1;
         delete $3;
+    }
+|   ID LTHIRD error RTHIRD {
+        string id = $1->getName();
+        insertId(id, varType + "*");
+        
+        $$ = new SymbolInfo(id + "[]", "VARIABLE");
+        
+        delete $1;
     }
 ;
 
@@ -677,7 +721,7 @@ statement
                 type = "CONST_FLOAT";
             else {
                 SymbolInfo* tempSymbol = new SymbolInfo("dummy", funcReturnType);
-                typeCheck(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
+                typeCast(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
 
                 delete tempSymbol;
             }
@@ -697,7 +741,7 @@ statement
                 type = "CONST_FLOAT";
             else {
                 SymbolInfo* tempSymbol = new SymbolInfo("dummy", funcReturnType);
-                typeCheck(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
+                typeCast(tempSymbol, $2, "Return type does not match with the return value in function " + funcName);
 
                 delete tempSymbol;
             }
@@ -801,10 +845,7 @@ expression
             // Do nothing
             // Error message handled in isVoidFunction
         } else if(lType != "UNDEC"){
-            if(lType == "CONST_FLOAT" && (rType == "CONST_FLOAT" || rType == "CONST_INT"))
-                type = "CONST_FLOAT";
-            else 
-                typeCheck($1, $3, "Type Mismatch");
+            typeCast($1, $3, "Type Mismatch");
         }
         // Undeclared variables are detected in 'variable' rule
         // and are handled there
@@ -868,7 +909,7 @@ rel_expression
             // Do nothing
             // Error message handled in isVoidFunction
         } else {
-            typeCast($1, $3);
+            typeCastIgnoreSide($1, $3, "Type Mismatch");
         }
 
         logMatchedString($$->getName());
@@ -900,7 +941,7 @@ simple_expression
         else if(isVoidFunc(rType)) {
             type = lType;
         } else {
-            type = typeCast($1, $3);
+            type = typeCastIgnoreSide($1, $3, "Type Mismatch");
         }
 
         logMatchedString(name);
@@ -945,7 +986,7 @@ term
         } else if(mulop == "%" && ueName == "0") {
                 errorMessage("Division by Zero");
         } else {
-            type = typeCast($1, $3);
+            type = typeCastIgnoreSide($1, $3, "Type Mismatch");
         }
 
         logMatchedString(name);
@@ -1011,7 +1052,7 @@ factor
                 
                 while(it != argList.end()) {
                     SymbolInfo* tempSymbol = new SymbolInfo("dummy", functionInfo->getParameterTypeAtIdx(i));
-                    typeCheck(*it, tempSymbol, to_string(1 + i) + "th argument mismatch in function " + id);
+                    typeCast(tempSymbol, *it, to_string(1 + i) + "th argument mismatch in function " + id);
                     
                     delete tempSymbol;
                     delete (*it);

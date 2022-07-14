@@ -162,6 +162,18 @@ public:
         return NULL;
     }
 
+    bool hasFunctionWithName(std::string symbolName) {
+        if(rootScopeTable == NULL)
+            return false;
+
+        SymbolInfo* symbolInfo = rootScopeTable->lookUp(symbolName);
+
+        if(symbolInfo != NULL && symbolInfo->getIsFunction())
+            return true;
+
+        return false;
+    }
+
     /**
      * Prints all the < symbolName : symbolType >
      * of the current scope.
