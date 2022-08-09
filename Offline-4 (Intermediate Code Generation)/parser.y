@@ -245,7 +245,7 @@
         }
     }
 
-    void handleFunctionDefinition() {
+    void handleFuncDefinition() {
         // Check if it is a function
         // if not then throw an error
         if(hasDeclaredId) {
@@ -304,26 +304,6 @@
         writeAt("code.asm", code, asmDataSegmentEndLine++);
     }
 
-    void declareProcedure(string id) {
-        if(errorCount > 0) {
-            return;
-        }
-
-        string code = "\t" + toUpper(id) + " PROC";
-        write("code.asm", code, true);
-        increaseCodeSegmentEndLine(1);
-    }
-
-    void endProcedure(string id) {
-        if(errorCount > 0) {
-            return;
-        }
-
-        string code = "\t" + toUpper(id) + " ENDP";
-        write("code.asm", code, true);
-        increaseCodeSegmentEndLine(1);
-    }
-
     void initializeAsmMain() {
         if(errorCount > 0) {
             return;
@@ -332,6 +312,23 @@
         string code = "\t\tMOV AX, @DATA\n\t\tMOV DS, AX";
         write("code.asm", code, true);
         increaseCodeSegmentEndLine(2);
+    }
+
+    void declareProcedure(string id) {
+        if(errorCount > 0) {
+            return;
+        }
+
+        string code = "\t" + toUpper(id) + " PROC";
+        write("code.asm", code, true);
+         
+        if(id == "main") {
+            initializeAsmMain();
+        } else {
+            write("code.asm", "\t\tPUSH BP\n\t\tMOV BP, SP", true);
+        }
+        
+        increaseCodeSegmentEndLine(3);
     }
 
     void terminateAsmMain() {
@@ -344,7 +341,24 @@
         increaseCodeSegmentEndLine(2);
     }
 
-    void writeInCodeSegment(string str, int noOfLines = 1) {
+    void endProcedure(string id, int noOfParams) {
+        if(errorCount > 0) {
+            return;
+        }
+
+        if(funcName == "main") {
+            terminateAsmMain();
+        } else {
+            string code = "\t\tMOV SP, BP\n";
+            code += "\t\tPOP BP\n";
+            code += "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "") + "\n";
+            code += "\t" + toUpper(id) + " ENDP";
+            write("code.asm", code, true);
+            increaseCodeSegmentEndLine(4);
+        }
+    }
+
+    void writeInCodeSegment(string str, int noOfLines) {
         if(errorCount > 0) {
             return;
         }
@@ -435,10 +449,6 @@ func_prototype
 
         declareProcedure(id);
 
-        if(id == "main") {
-            initializeAsmMain();
-        }
-
         delete $1;
         delete $2;
         delete $4;
@@ -462,10 +472,6 @@ func_prototype
         handleFuncDeclaration(id, returnType);
 
         declareProcedure(id);
-
-        if(id == "main") {
-            initializeAsmMain();
-        }
 
         delete $1;
         delete $2;
@@ -513,7 +519,9 @@ func_definition
         $$ = new SymbolInfo($1->getName() + $2->getName(), "VARIABLE");
         logFoundRule("func_definition", "type_specifier ID LPAREN " + $1->getType() + " RPAREN compound_statement");
         
-        handleFunctionDefinition();
+        handleFuncDefinition();
+
+        endProcedure(funcName, ((FunctionInfo*)symbolTable.lookUp(funcName))->getNumberOfParameters());
 
         hasDeclaredId = hasFuncDeclared = hasFuncDefined = hasFoundReturn = false;
         funcName.clear();
@@ -558,10 +566,17 @@ enter_scope
         // Insert the parameters in the scope
         list<pair<string, string> >::iterator it = parameters.begin();
 
+        int i = parameters.size();
         while(it != parameters.end()) {      
-            if((*it).first != "" && symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second)) == NULL)
+            IdInfo* idInfo = (IdInfo*)symbolTable.insert((*it).first, "ID", "CONST_" + toUpper((*it).second),0 , true);
+            if((*it).first != "" && idInfo == NULL)
                 errorMessage("Multiple declaration of " + (*it).first + " in parameter");
+            else {
+                // set the offset of the parameter
+                idInfo->setStackOffset(2 + i * 2);
+            }
             it++;
+            i--;
         }
 }
 
@@ -642,12 +657,6 @@ compound_statement
 :   LCURL enter_scope statements RCURL {
         $$ = new SymbolInfo("{\n" + $3->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
-
-        if(funcName == "main") {
-            terminateAsmMain();
-        }
-
-        endProcedure(funcName);
         
         // Print the symbol table and then exit the current scope
         logFile << symbolTable.getNonEmptyList() << "\n\n";
@@ -658,12 +667,6 @@ compound_statement
 |   LCURL enter_scope RCURL {
         $$ = new SymbolInfo("{}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL RCURL", $$->getName());
-
-        if(funcName == "main") {
-            terminateAsmMain();
-        }
-        
-        endProcedure(funcName);
         
         logFile << symbolTable.getNonEmptyList() << "\n\n";
         symbolTable.exitScope();
@@ -1011,7 +1014,7 @@ expression
 
         // TODO: might require changes
         IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
-        writeInCodeSegment("\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], " + $3->getName());
+        writeInCodeSegment("\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], " + $3->getName(), 1);
 
         if(isVoidFunc(rType)) {
             // Do nothing
@@ -1225,6 +1228,9 @@ factor
                 while(it != argList.end()) {
                     SymbolInfo* tempSymbol = new SymbolInfo("dummy", functionInfo->getParameterTypeAtIdx(i));
                     typeCast(tempSymbol, *it, to_string(1 + i) + "th argument mismatch in function " + id);
+
+                    // TODO: might have to change. this can only push constant now. upgrade it to push variables too
+                    writeInCodeSegment("\t\tPUSH " + (*it)->getName(), 1);
                     
                     delete tempSymbol;
                     delete (*it);
@@ -1239,6 +1245,9 @@ factor
             $$ = new SymbolInfo(varName, ((IdInfo*)symbolInfo)->getIdType());
         }
         
+        // call the function
+        writeInCodeSegment("\t\tCALL " + toUpper(id) + "\n", 2);
+
         // Clear the argList
         list<SymbolInfo*>::iterator it = argList.begin();
                 

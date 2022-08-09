@@ -27,6 +27,8 @@ public:
 
     std::string getIdType() const { return this->idType; }
 
+    void setStackOffset(int stackOffset) { this->stackOffset = stackOffset; }
+
     int getStackOffset() const { return this->stackOffset; }
 
     void setArraySize(int arraySize) { this->arraySize = arraySize; }

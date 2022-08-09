@@ -95,7 +95,7 @@ public:
      * @param idType of the ID
      * @return SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    SymbolInfo* insert(std::string name, std::string type, std::string idType, int arraySize = 0) {
+    SymbolInfo* insert(std::string name, std::string type, std::string idType, int arraySize, bool isParameter = false) {
         if(type != "ID") {
             std::cout << "Invalid type. \"ID\" expected\n";
             return NULL;
@@ -105,7 +105,7 @@ public:
             enterScope();
         }
 
-        return currentScopeTable->insert(name, type, idType, arraySize);
+        return currentScopeTable->insert(name, type, idType, arraySize, isParameter);
     }
 
     bool containsFunction(std::string name) {

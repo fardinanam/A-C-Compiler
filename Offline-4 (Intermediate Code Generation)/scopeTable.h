@@ -164,12 +164,15 @@ public:
      * if no symbol corresponding to the name already exists in the table.
      * Also sets the stack offset of the IdInfo object
      * based on the number of declared objects in the scope.
+     * Total ids is only updated when the id is not a parameter.
      * @param name of the symbol
      * @param type of the symbol
      * @param idType type of the ID
+     * @param arraySize size of the array if the ID is an array.
+     * @param isParameter is true if the ID is a parameter. 
      * @return newly inserted SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    SymbolInfo *insert(std::string name, std::string type, std::string idType, int arraySize = 0)
+    SymbolInfo *insert(std::string name, std::string type, std::string idType, int arraySize, bool isParameter = false)
     {
         int hashtableIndex = sdbmhash(name) % size;
         int linkedListIndex = 0;
@@ -179,9 +182,11 @@ public:
 
         if (current == NULL)
         {
+            // If it's not a parameter, then
             // If it's an array then increase the totalIds by the arraySize
             // else increase the totalIds by 1
-            totalIds += arraySize ? arraySize : 1;
+            if(!isParameter)
+                totalIds += arraySize ? arraySize : 1;
             return hashTable[hashtableIndex] = new IdInfo(name, idType, stackOffset, arraySize);
         }
         else if (name == current->getName())
@@ -213,9 +218,11 @@ public:
                 return NULL;
             }
 
+            // If it's not a parameter, then
             // If it's an array then increase the totalIds by the arraySize
             // else increase the totalIds by 1
-            totalIds += arraySize ? arraySize : 1;
+            if (!isParameter)
+                totalIds += arraySize ? arraySize : 1;
             newSymbolInfo = new IdInfo(name, idType, stackOffset, arraySize);
             current->setNext(newSymbolInfo);
 
