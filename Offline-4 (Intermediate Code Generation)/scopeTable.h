@@ -180,6 +180,11 @@ public:
         SymbolInfo *newSymbolInfo = NULL;
         int stackOffset = -(totalIds + 1) * 2;
 
+        // Stack offset of global variable is set to -1 to indecate that it is a global variable.
+        // this value should be checked to detect global variables.
+        // Note that all the offsets in local variables are > 0 or <= -2.
+        if(id == "1") stackOffset = -1;
+
         if (current == NULL)
         {
             // If it's not a parameter, then

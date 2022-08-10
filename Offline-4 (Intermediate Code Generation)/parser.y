@@ -19,11 +19,12 @@
 
     SymbolTable symbolTable(31);
 
-    int labelCount = 0;
-    int tempCount = 0;
-    int asmLineCount = 0;
-    int asmDataSegmentEndLine = 0;
-    int asmCodeSegmentEndLine = 0;
+    int labelCount = 0;                     //label count for generating labels
+    int tempCount = 0;                      //temporary variable count for generating temporary variables
+    int asmLineCount = 0;                   //line count for generating assembly code
+    int asmDataSegmentEndLine = 0;          //line count for end of data segment
+    int asmCodeSegmentEndLine = 0;          //line count for end of code segment
+    int asmExpressionLine = -1;             //Line no at which expression is to be evaluated
     list<pair<string, string> > parameters; // Contains the parameter list <name, type> of the currently declared function
     list<SymbolInfo*> argList;              // Contans argument list while calling a function
     string varType;                         // Contains recent variable type
@@ -77,6 +78,15 @@
         // cout << s << endl;
     }
 
+    int stringLineCount(string str) {
+        int count = 0;
+        for (int i = 0; i < str.length(); i++) {
+            if (str[i] == '\n') {
+                count++;
+            }
+        }
+        return count;
+    }
     /**
      * increases the end line of code segment along with asmLineCount
      * @param incAmount amount by which the end line of code segment should be increased
@@ -84,6 +94,15 @@
     void increaseCodeSegmentEndLine(int incAmount) {
         asmCodeSegmentEndLine += incAmount;
         asmLineCount += incAmount;
+    }
+
+    void writeInCodeSegment(string str) {
+        if(errorCount > 0) {
+            return;
+        }
+
+        write("code.asm", str, true);
+        increaseCodeSegmentEndLine(stringLineCount(str) + 1);
     }
 
     void insertId(string idName, string type, int arraySize = 0) {
@@ -95,19 +114,17 @@
                 errorMessage("Multiple declaration of " + idName);
             } else if(symbolTable.getCurrentScopeID() != "1" && errorCount == 0) {
                 if(arraySize == 0) {
-                    write("code.asm", "\t\tPUSH BX    ;line no " + to_string(lineCount) + ": " + idName + " declared", true);
-                    increaseCodeSegmentEndLine(1);
+                    writeInCodeSegment("\t\tPUSH BX    ;line no " + to_string(lineCount) + ": " + idName + " declared");
                 } else {
                     string str = "\t\t;line no " + to_string(lineCount) + ": declaring array " + idName + " with size " + to_string(arraySize);
                     for(int i=0; i<arraySize; i++) {
                         str += "\n\t\tPUSH BX";
                     }
                     str += "\n\t\t;array declared";
-                    write("code.asm", str, true);
-                    increaseCodeSegmentEndLine(arraySize + 2);
+                    writeInCodeSegment(str);
                 }
 
-                cout << idName << " offset = " << ((IdInfo*)idInfo)->getStackOffset() << endl;
+                // cout << idName << " offset = " << ((IdInfo*)idInfo)->getStackOffset() << endl;
             }
         }
     }
@@ -286,6 +303,7 @@
 
         string code = "\t" + name + " DW ?";
         asmLineCount++;
+        asmCodeSegmentEndLine++;
         writeAt("code.asm", code, asmDataSegmentEndLine++);
     }
 
@@ -301,6 +319,7 @@
 
         string code = "\t" + name + " DW " + arraySize + " DUP(?)";
         asmLineCount++;
+        asmCodeSegmentEndLine++;
         writeAt("code.asm", code, asmDataSegmentEndLine++);
     }
 
@@ -319,16 +338,15 @@
             return;
         }
 
-        string code = "\t" + toUpper(id) + " PROC";
+        string code = "\t" + id + " PROC";
         write("code.asm", code, true);
-         
+        increaseCodeSegmentEndLine(1);
+
+        cout << "Procedure " + id + " declared at line " << asmCodeSegmentEndLine << endl;
+
         if(id == "main") {
             initializeAsmMain();
-        } else {
-            write("code.asm", "\t\tPUSH BP\n\t\tMOV BP, SP", true);
         }
-        
-        increaseCodeSegmentEndLine(3);
     }
 
     void terminateAsmMain() {
@@ -349,22 +367,45 @@
         if(funcName == "main") {
             terminateAsmMain();
         } else {
-            string code = "\t\tMOV SP, BP\n";
-            code += "\t\tPOP BP\n";
-            code += "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "") + "\n";
-            code += "\t" + toUpper(id) + " ENDP";
+            string code = "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "");
             write("code.asm", code, true);
-            increaseCodeSegmentEndLine(4);
+            increaseCodeSegmentEndLine(1);
         }
+
+        string code = "\t" + id + " ENDP";
+        write("code.asm", code, true);
+        increaseCodeSegmentEndLine(1);
     }
 
-    void writeInCodeSegment(string str, int noOfLines) {
+    void writeAtExpressionLine(string str, int noOfLines) {
         if(errorCount > 0) {
             return;
         }
 
-        write("code.asm", str, true);
+        // -1 indicated that this should be the start of the expression
+        if(asmExpressionLine == -1) {
+            asmExpressionLine = asmCodeSegmentEndLine;
+        }
+        // cout << "written:\n" << str << "\nAt line: " << asmExpressionLine << endl;
+        writeAt("code.asm", str, asmExpressionLine);
         increaseCodeSegmentEndLine(noOfLines);
+    }
+
+    string relopSymbolToAsmJumpText(string symbol) {
+        if(symbol == "==")
+            return "JE";
+        else if(symbol == "!=")
+            return "JNE";
+        else if(symbol == "<")
+            return "JL";
+        else if(symbol == "<=")
+            return "JLE";
+        else if(symbol == ">")
+            return "JG";
+        else if(symbol == ">=")
+            return "JGE";
+        else
+            return "";
     }
 %}
 
@@ -578,6 +619,14 @@ enter_scope
             it++;
             i--;
         }
+
+        // ASM code for entering the scope
+        string code = "\t\t;entering scope: " + symbolTable.getCurrentScopeID() + "\n";
+        code += "\t\tPUSH BP\t;saving BP\n";
+        code += "\t\tMOV BP, SP\t;BP = SP (all the offsets in this scope are based on this value of BP)";
+        write("code.asm", code, true);
+        increaseCodeSegmentEndLine(3);
+        
 }
 
 parameter_list
@@ -654,7 +703,12 @@ parameter_list
 ;
 
 compound_statement
-:   LCURL enter_scope statements RCURL {
+:   LCURL enter_scope statements {
+        string code = "\t\tMOV SP, BP\t;Restoring SP at the end of scope\n";
+        code += "\t\tPOP BP\t;restoring BP at the end of scope\n";
+        code += "\t\t;scope " + symbolTable.getCurrentScopeID() + " ended";
+        writeInCodeSegment(code);
+    } RCURL {
         $$ = new SymbolInfo("{\n" + $3->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
         
@@ -721,9 +775,6 @@ declaration_list
 
         if(symbolTable.getCurrentScopeID() == "1")
             declareGlobalVariable(id, varType);
-        else {
-            // writeAsmCode("PUSH ");
-        }
 
         logMatchedString($$->getName());
 
@@ -856,12 +907,12 @@ statement
         string id = $3->getName();
         $$ = new SymbolInfo("println(" + id + ");", "VARIABLE");
         logFoundRule("statement", "PRINTLN LPAREN ID RPAREN SEMICOLON");
-
-        string str = "\n";
+        
         IdInfo* idInfo = (IdInfo*)symbolTable.lookUp(id);
+        string str = "\n";
         str += "\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;passing " + id + " to PRINT_INTEGER\n";
         str += "\t\tCALL PRINT_INTEGER\n";
-        writeInCodeSegment(str, 4);
+        writeInCodeSegment(str);
 
         if(symbolTable.lookUp(id) == NULL) 
             errorMessage("Undeclared variable " + id);
@@ -898,6 +949,11 @@ statement
                 delete tempSymbol;
             }
         }
+
+        // Procedures in ASM return its return value in AX
+        if(funcReturnType != "CONST_VOID") {
+            writeInCodeSegment("\t\tPOP AX\t;saving return value in AX");
+        }
             
         logMatchedString(name);
         $$ = new SymbolInfo(name, type);
@@ -929,10 +985,21 @@ expression_statement
 :   SEMICOLON {
         $$ = new SymbolInfo(";", "VARIABLE");
         logFoundRule("expression_statement", "SEMICOLON", $$->getName());
+
+        // make asmExpressionLine = -1 to indicate that the expression is terminated
+        asmExpressionLine = -1;
+        
     }
 |   expression SEMICOLON {
         $$ = new SymbolInfo($1->getName() + ";", $1->getType());
         logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
+
+        // make asmExpressionLine = -1 to indicate that the expression is terminated
+        asmExpressionLine = -1;
+
+        // There is always an extra push after every expression
+        // So, we need to pop it out after we get a semicolon after an expression
+        writeInCodeSegment("\t\tPOP AX\t;Popped out " + $1->getName());
         delete $1;
     }
 |   expression error {
@@ -948,12 +1015,22 @@ variable
         string id = $1->getName();
         logFoundRule("variable", "ID");
 
-        SymbolInfo* symbolInfo = symbolTable.lookUp(id);
-        if(symbolInfo == NULL) {
+        IdInfo* idInfo = (IdInfo*)symbolTable.lookUp(id);
+        if(idInfo == NULL) {
             errorMessage("Undeclared variable " + id);
             $$ = new SymbolInfo(id, "UNDEC");
         } else {
-            $$ = new SymbolInfo(symbolInfo->getName(), ((IdInfo*)symbolInfo)->getIdType());
+            $$ = new SymbolInfo(idInfo->getName(), idInfo->getIdType());
+            // $$ = new IdInfo(idInfo->getName(), idInfo->getIdType(), idInfo->getStackOffset(), idInfo->getArraySize());
+
+            // Write in ASM code
+            if(idInfo->getStackOffset() == -1) {
+                // writeAtExpressionLine("\t\tPUSH " + id + "\texpression evaluation;", 1);
+                writeInCodeSegment("\t\tPUSH " + id + "\t;expression evaluation");
+            } else {
+                // writeAtExpressionLine("\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;" + idInfo->getName() + " pushed", 1);
+                writeInCodeSegment("\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t; " + idInfo->getName() + " pushed");
+            }
         }
         
         logMatchedString(id);
@@ -971,6 +1048,7 @@ variable
         if(symbolInfo == NULL) {
             errorMessage("Undeclared variable " + id);
             varType = "UNDEC";
+            $$ = new SymbolInfo(name, varType);
         } else if(symbolInfo->getType() == "ID") {
             IdInfo* idInfo = (IdInfo*)symbolInfo;
             string idType = idInfo->getIdType();
@@ -982,6 +1060,8 @@ variable
                 // the type of the variable will be the original type of the array elements
                 // So, truncate the '*'
                 varType = idType.substr(0, idType.size() - 1);
+                // TODO: handle array
+                $$ = new IdInfo(name, varType, idInfo->getStackOffset(), 0);
             }            
         } else {
             errorMessage(id + " not an array");
@@ -993,7 +1073,7 @@ variable
         
         logMatchedString(name);
 
-        $$ = new SymbolInfo(name, varType);
+        // $$ = new SymbolInfo(name, varType);
         delete $1;
         delete $3;
     }
@@ -1012,10 +1092,6 @@ expression
         
         logFoundRule("expression", "variable ASSIGNOP logic_expression");
 
-        // TODO: might require changes
-        IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
-        writeInCodeSegment("\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], " + $3->getName(), 1);
-
         if(isVoidFunc(rType)) {
             // Do nothing
             // Error message handled in isVoidFunction
@@ -1026,6 +1102,20 @@ expression
         // and are handled there
 
         logMatchedString(name);
+
+        // IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
+        // writeInCodeSegment("\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], " + $3->getName(), 1);
+        IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
+        string code = "\t\tPOP AX\t;" + $3->getName() + " popped\n";
+        // code += "\t\tPOP BX\t;popped out " + $1->getName() + "\n";
+
+        if(idInfo->getStackOffset() == -1) {
+            code += "\t\tMOV " + $1->getName() + ", AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
+        } else {
+            code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
+        }
+
+        writeInCodeSegment(code);        
 
         $$ = new SymbolInfo(name, type);
         delete $1;
@@ -1042,9 +1132,17 @@ logic_expression
 :   rel_expression {
         $$ = $1;
         logFoundRule("logic_expression", "rel_expression", $$->getName());
+
+        // In all the productions where there is a logic_expression, the expression is terminated
+        // so make asmExpressionLine = -1 to indicate that the expression is terminated
+        asmExpressionLine = -1;
     }
 |   rel_expression LOGICOP rel_expression {
-        $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "CONST_INT");
+        string lName = $1->getName();
+        string rName = $3->getName();
+        string logicop = $2->getName();
+
+        $$ = new SymbolInfo(lName + logicop + rName, "CONST_INT");
         logFoundRule("logic_expression", "rel_expression LOGICOP rel_expression");
 
         if(isVoidFunc($1->getType())) {
@@ -1058,7 +1156,57 @@ logic_expression
         // both sides of logical operator
         
         logMatchedString($$->getName());
+        
+        // In all the productions where there is a logic_expression, the expression is terminated
+        // so make asmExpressionLine = -1 to indicate that the expression is terminated
+        asmExpressionLine = -1;
 
+        string code = "\t\t;line no " + to_string(lineCount) + ": " + lName + logicop + rName + "\n";
+        if(logicop == "&&") {
+            string labelLeftTrue = newLabel();
+            string labelTrue = newLabel();
+            string labelEnd = newLabel();
+
+            // logical and operation in ASM
+            code += "\t\tPOP BX\t; " + rName + " popped\n";
+            code += "\t\tPOP AX\t; " + lName + " popped\n";
+            code += "\t\tCMP AX, 0\t; comparing " + lName + " and 0\n";
+            code += "\t\tJNE " + labelLeftTrue + "\t; if " + lName + " is not 0, check " 
+                + rName + ". So, jump to " + labelLeftTrue + "\n";
+            code += "\t\tPUSH 0\t; " + lName + " is 0, the whole expression is 0. So, set the value to 0\n";
+            code += "\t\tJMP " + labelEnd + "\n";
+            code += "\t\t" + labelLeftTrue + ":\n";
+            code += "\t\tCMP BX, 0\t; comparing " + rName + " and 0\n";
+            code += "\t\tJNE " + labelTrue + "\t; if " + rName + " is not 0, the whole expression is true. So, jump to " + labelTrue + "\n";
+            code += "\t\tPUSH 0\t; " + lName + " and " + rName + " are false. So, set the value to 0\n";
+            code += "\t\tJMP " + labelEnd + "\n";
+            code += "\t\t" + labelTrue + ":\n";
+            code += "\t\tPUSH 1\t; " + lName + " and " + rName + " are true. So, set the value to 1\n";
+            code += "\t\t" + labelEnd + ":\n";
+        } else {
+            string labelLeftFalse = newLabel();
+            string labelFalse = newLabel();
+            string labelEnd = newLabel();
+
+            // logical or operation in ASM
+            code += "\t\tPOP BX\t; " + rName + " popped\n";
+            code += "\t\tPOP AX\t; " + lName + " popped\n";
+            code += "\t\tCMP AX, 0\t; comparing " + lName + " and 0\n";
+            code += "\t\tJE " + labelLeftFalse + "\t; if " + lName + " is 0, check " 
+                + rName + ". So, jump to " + labelLeftFalse + "\n";
+            code += "\t\tPUSH 1\t; " + lName + " is not 0, the whole expression is true. So, set the value to 1\n";
+            code += "\t\tJMP " + labelEnd + "\n";
+            code += "\t\t" + labelLeftFalse + ":\n";
+            code += "\t\tCMP BX, 0\t; comparing " + rName + " and 0\n";
+            code += "\t\tJE " + labelFalse + "\t; if " + rName + " is 0, the whole expression is false. So, jump to " + labelFalse + "\n";
+            code += "\t\tPUSH 1\t; " + lName + " and " + rName + " are true. So, set the value to 1\n";
+            code += "\t\tJMP " + labelEnd + "\n";
+            code += "\t\t" + labelFalse + ":\n";
+            code += "\t\tPUSH 0\t; " + lName + " and " + rName + " are false. So, set the value to 0\n";
+            code += "\t\t" + labelEnd + ":\n";
+        }
+
+        writeInCodeSegment(code);
         delete $1;
         delete $2;
         delete $3;
@@ -1073,6 +1221,9 @@ rel_expression
 |   simple_expression RELOP simple_expression {
         string lType = $1->getType();
         string rType = $3->getType();
+        string lName = $1->getName();
+        string rName = $3->getName();
+        string relop = $2->getName();
         
         $$ = new SymbolInfo($1->getName() + $2->getName() + $3->getName(), "CONST_INT");
         logFoundRule("rel_expression", "simple_expression RELOP simple_expression");
@@ -1088,6 +1239,22 @@ rel_expression
         }
 
         logMatchedString($$->getName());
+
+        string labelIfTrue = newLabel();
+        string labelIfFalse = newLabel();
+
+        string code = "\t\t;Checking if " + lName + relop + rName + "\n";
+        code += "\t\tPOP BX\t;popped out " + rName + "\n";
+        code += "\t\tPOP AX\t;popped out " + lName + "\n";
+        code += "\t\tCMP AX, BX\t;comparing " + lName + " and " + rName + "\n";
+        code += "\t\t" + relopSymbolToAsmJumpText(relop) + " " + labelIfTrue + "\n";
+        code += "\t\tPUSH 0\t;false\n";
+        code += "\t\tJMP " + labelIfFalse + "\n";
+        code += "\t\t" + labelIfTrue + ":\n";
+        code += "\t\tPUSH 1\t;true\n";
+        code += "\t\t" + labelIfFalse + ":\n";
+
+        writeInCodeSegment(code);
 
         delete $1;
         delete $2;
@@ -1120,6 +1287,18 @@ simple_expression
         }
 
         logMatchedString(name);
+
+        string code = "\t\t;Adding " + $1->getName() + " and " + $3->getName() + "\n";
+        code += "\t\tPOP AX\t;" + $3->getName() + " popped\n";
+        code += "\t\tPOP BX\t;" + $1->getName() + " popped\n";
+
+        if($2->getName() == "+")
+            code += "\t\tADD AX, BX\n";
+        else
+            code += "\t\tSUB AX, BX\n";
+
+        code += "\t\tPUSH AX\t;pushed " + $1->getName() + " + " + $3->getName() + "\n";
+        writeInCodeSegment(code);
 
         $$ = new SymbolInfo(name, type);
         delete $1;
@@ -1167,6 +1346,21 @@ term
         logMatchedString(name);
 
         $$ = new SymbolInfo(name, type);
+
+        string operation = mulop == "%" ? "Modulus" : mulop == "*" ? "Multiplication" : "Division";
+        string code = "\t\t;" + operation + " of " + $1->getName() + " and " + $3->getName() + "\n";
+        code += "\t\tPOP BX\t;" + $3->getName() + " popped\n";
+        code += "\t\tPOP AX\t;" + $1->getName() + " popped\n";
+        if(mulop == "*") {
+            code += "\t\tIMUL BX\t;AX = " + $1->getName() + " * " + $3->getName() + "\n";
+        } else {
+            code += "\t\tXOR DX, DX\t;resetting DX to 0\n";
+            code += "\t\tIDIV BX\t;" + $1->getName() + "/" + $3->getName() + "\n";
+            if(mulop == "%")
+                code += "\t\tMOV AX, DX\t;AX = " + $1->getName() + "%" + $3->getName() + "\n";
+        }
+        code += "\t\tPUSH AX\t;pushed " + $1->getName() + mulop + $3->getName() + "\n";
+        writeInCodeSegment(code);
         
         delete $1;
         delete $2;
@@ -1228,9 +1422,6 @@ factor
                 while(it != argList.end()) {
                     SymbolInfo* tempSymbol = new SymbolInfo("dummy", functionInfo->getParameterTypeAtIdx(i));
                     typeCast(tempSymbol, *it, to_string(1 + i) + "th argument mismatch in function " + id);
-
-                    // TODO: might have to change. this can only push constant now. upgrade it to push variables too
-                    writeInCodeSegment("\t\tPUSH " + (*it)->getName(), 1);
                     
                     delete tempSymbol;
                     delete (*it);
@@ -1246,7 +1437,9 @@ factor
         }
         
         // call the function
-        writeInCodeSegment("\t\tCALL " + toUpper(id) + "\n", 2);
+        string code = "\t\tCALL " + id + "\n";
+        code += "\t\tPUSH AX\t;pushed return value of " + id;
+        writeInCodeSegment(code);
 
         // Clear the argList
         list<SymbolInfo*>::iterator it = argList.begin();
@@ -1268,11 +1461,20 @@ factor
     }
 |   CONST_INT {
         $$ = $1;
-        logFoundRule("factor", "CONST_INT", $$->getName());
+
+        string value = $$->getName();
+        logFoundRule("factor", "CONST_INT", value);
+
+        // writeAtExpressionLine("\t\tPUSH " + value, 1);
+        writeInCodeSegment("\t\tPUSH " + value);
     }
 |   CONST_FLOAT {
         $$ = $1;
         logFoundRule("factor", "CONST_FLOAT", $$->getName());
+
+        // write ASM code for expression evaluation
+        // writeAtExpressionLine("\t\tPUSH " + $$->getName(), 1);
+        // writeInCodeSegment("\t\tPUSH " + $$->getName());
     }
 |   CONST_CHAR {
         $$ = $1;
@@ -1281,6 +1483,12 @@ factor
 |   variable INCOP %prec POSTFIX_INCOP {
         $$ = new SymbolInfo($1->getName() + $2->getName(), $1->getType());
         logFoundRule("factor", "variable INCOP", $$->getName());
+
+        // first 
+        string code = "\t\tPOP AX\t;AX = " + $1->getName() + "\n";
+        code += "\t\tINC AX\t;AX = " + $1->getName() + " + 1\n";
+    
+
         delete $1;
         delete $2;
     }
@@ -1377,7 +1585,7 @@ void writeProcPrintln() {
     PRINT_INTEGER ENDP";
 
     write("code.asm", str, true);
-    increaseCodeSegmentEndLine(48);
+    increaseCodeSegmentEndLine(stringLineCount(str) + 1);
 }
 /**
 * Function that writes the required starting code to run the 8086 assembly code to the code.asm file
