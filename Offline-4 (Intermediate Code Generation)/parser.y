@@ -334,6 +334,8 @@
     }
 
     void declareProcedure(string id) {
+        symbolTable.resetTotalIdsInCurrentFunction();
+
         if(errorCount > 0) {
             return;
         }
@@ -346,7 +348,14 @@
 
         if(id == "main") {
             initializeAsmMain();
-        }
+        } else {
+            // ASM code for entering the function
+            code = "\t\t;entering function: " + funcName + "\n";
+            code += "\t\tPUSH BP\t;saving BP\n";
+            code += "\t\tMOV BP, SP\t;BP = SP (all the offsets in this function are based on this value of BP)\n";
+            write("code.asm", code, true);
+            increaseCodeSegmentEndLine(4);
+        }        
     }
 
     void terminateAsmMain() {
@@ -367,13 +376,15 @@
         if(funcName == "main") {
             terminateAsmMain();
         } else {
-            string code = "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "");
-            write("code.asm", code, true);
-            increaseCodeSegmentEndLine(1);
+            string code = "\t\tMOV SP, BP\t;Restoring SP at the end of function\n";
+            code += "\t\tPOP BP\t;restoring BP at the end of function\n";
+            code += "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "");
+            // write("code.asm", code, true);
+            // increaseCodeSegmentEndLine(3);
+            writeInCodeSegment(code);
         }
 
-        string code = "\t" + id + " ENDP";
-        write("code.asm", code, true);
+        write("code.asm", "\t" + id + " ENDP", true);
         increaseCodeSegmentEndLine(1);
     }
 
@@ -618,15 +629,7 @@ enter_scope
             }
             it++;
             i--;
-        }
-
-        // ASM code for entering the scope
-        string code = "\t\t;entering scope: " + symbolTable.getCurrentScopeID() + "\n";
-        code += "\t\tPUSH BP\t;saving BP\n";
-        code += "\t\tMOV BP, SP\t;BP = SP (all the offsets in this scope are based on this value of BP)";
-        write("code.asm", code, true);
-        increaseCodeSegmentEndLine(3);
-        
+        }        
 }
 
 parameter_list
@@ -703,12 +706,7 @@ parameter_list
 ;
 
 compound_statement
-:   LCURL enter_scope statements {
-        string code = "\t\tMOV SP, BP\t;Restoring SP at the end of scope\n";
-        code += "\t\tPOP BP\t;restoring BP at the end of scope\n";
-        code += "\t\t;scope " + symbolTable.getCurrentScopeID() + " ended";
-        writeInCodeSegment(code);
-    } RCURL {
+:   LCURL enter_scope statements RCURL {
         $$ = new SymbolInfo("{\n" + $3->getName() + "\n}", "VARIABLE");
         logFoundRule("compound_statement", "LCURL statements RCURL", $$->getName());
         
@@ -1020,8 +1018,8 @@ variable
             errorMessage("Undeclared variable " + id);
             $$ = new SymbolInfo(id, "UNDEC");
         } else {
-            $$ = new SymbolInfo(idInfo->getName(), idInfo->getIdType());
-            // $$ = new IdInfo(idInfo->getName(), idInfo->getIdType(), idInfo->getStackOffset(), idInfo->getArraySize());
+            // $$ = new SymbolInfo(idInfo->getName(), idInfo->getIdType());
+            $$ = new IdInfo(idInfo->getName(),idInfo->getIdType(), idInfo->getIdType(), idInfo->getStackOffset(), idInfo->getArraySize());
 
             // Write in ASM code
             if(idInfo->getStackOffset() == -1) {
@@ -1060,8 +1058,31 @@ variable
                 // the type of the variable will be the original type of the array elements
                 // So, truncate the '*'
                 varType = idType.substr(0, idType.size() - 1);
-                // TODO: handle array
-                $$ = new IdInfo(name, varType, idInfo->getStackOffset(), 0);
+                int stackOffset = idInfo->getStackOffset();
+                
+                $$ = new IdInfo(id, varType, varType, stackOffset, idInfo->getArraySize());
+                // $$ = new SymbolInfo(name, varType);
+                // get the value of the id[index]
+                string code = "\t\t;line no " + to_string(lineCount) + ": getting the value of " + id + "[" + $3->getName() + "]\n";
+                code += "\t\tPOP BX\t;saving the index of the array in BX\n";
+                code += "\t\tSHL BX, 1\t;multiplying index by 2 to match the size of word\n";
+                if(stackOffset != -1) {
+                    if(stackOffset < 0)
+                        code += "\t\tNEG BX\t;offset is negative\n";
+                    code += "\t\tADD BX, " + to_string(stackOffset) + "\t;adding the offset of the array to get the offset of array element\n";
+                    code += "\t\tADD BX, BP\t;adding BP to BX to get the address of the array\n";
+                    code += "\t\tMOV AX, [BX]\t;getting the value of the array at index BX\n";
+                } else {
+                    code += "\t\tMOV AX, " + id + "[BX]\t;getting the value of the array at index BX\n";
+                }
+                
+                // push the index and value of the array element on the stack
+                // this will allow the ASSIGNOP and INCOP to use it later
+                code += "\t\tPUSH AX\t;pushing the value of the array element at index " + $3->getName() + "\n";
+                code += "\t\tPUSH BX\t;pushing the index of the array";
+                writeInCodeSegment(code);
+
+                cout << "Okay in variable\n";
             }            
         } else {
             errorMessage(id + " not an array");
@@ -1085,7 +1106,8 @@ expression
         logFoundRule("expression", "logic_expression", $$->getName());
     }
 |   variable ASSIGNOP logic_expression {
-        string name = $1->getName() + "=" + $3->getName();
+        string lName = $1->getName();
+        string name = lName + "=" + $3->getName();
         string lType = $1->getType();
         string rType = $3->getType();
         string type = lType;
@@ -1103,16 +1125,23 @@ expression
 
         logMatchedString(name);
 
-        // IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
-        // writeInCodeSegment("\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], " + $3->getName(), 1);
-        IdInfo* idInfo = (IdInfo*)symbolTable.lookUp($1->getName());
+        IdInfo* idInfo = (IdInfo*)$1; // variable always passed an IdInfo. So it is safe to cast it
+        int arraySize = idInfo->getArraySize();
+
         string code = "\t\tPOP AX\t;" + $3->getName() + " popped\n";
-        // code += "\t\tPOP BX\t;popped out " + $1->getName() + "\n";
+        if(arraySize > 0)
+            code += "\t\tPOP BX\t;index of the array element popped\n";
 
         if(idInfo->getStackOffset() == -1) {
-            code += "\t\tMOV " + $1->getName() + ", AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
+            if(arraySize > 0)
+                code += "\t\tMOV " + lName + "[BX], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BX]\n";
+            else
+                code += "\t\tMOV " + $1->getName() + ", AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
         } else {
-            code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
+            if(arraySize > 0)
+                code += "\t\tMOV [BX], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BX]\n";
+            else  
+                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
         }
 
         writeInCodeSegment(code);        
@@ -1288,7 +1317,7 @@ simple_expression
 
         logMatchedString(name);
 
-        string code = "\t\t;Adding " + $1->getName() + " and " + $3->getName() + "\n";
+        string code = "\t\t;line no " + to_string(lineCount) + ": Adding " + $1->getName() + " and " + $3->getName() + "\n";
         code += "\t\tPOP AX\t;" + $3->getName() + " popped\n";
         code += "\t\tPOP BX\t;" + $1->getName() + " popped\n";
 
@@ -1372,12 +1401,39 @@ unary_expression
 :   ADDOP unary_expression {
         $$ = new SymbolInfo($1->getName() + $2->getName(), $2->getType());
         logFoundRule("unary_expression", "ADDOP unary_expression", $$->getName());
+
+        string rName = $2->getName();
+        if($1->getName() == "-") {
+            string code = "\t\t;line no " + to_string(lineCount) + ": Negating " + rName + "\n";
+            code += "\t\tPOP AX\t;popped " + rName + "\n";
+            code += "\t\tNEG AX\t;negating " + rName + "\n";
+            code += "\t\tPUSH AX\t;pushed -" + rName + "\n";
+            writeInCodeSegment(code);
+        }
+
         delete $1;
         delete $2;
     }
 |   NOT unary_expression {
         $$ = new SymbolInfo("!" + $2->getName(), $2->getType());
         logFoundRule("unary_expression", "NOT unary_expression", $$->getName());
+
+        string rName = $2->getName();
+        string labelIfZero = newLabel();
+        string labelEnd = newLabel();
+
+        string code = "\t\t;line no " + to_string(lineCount) + ": Logical NOT of " + rName + "\n";
+        code += "\t\tPOP AX\t;popped " + rName + "\n";
+        code += "\t\tCMP AX, 0\t;comparing " + rName + " with 0\n";
+        code += "\t\tJE " + labelIfZero + "\t;jumping if " + rName + " is 0\n";
+        code += "\t\tPUSH 0\t;" + rName + " is not 0 so setting it to 0\n";
+        code += "\t\tJMP " + labelEnd + "\t;jumping to end\n";
+        code += "\t\t" + labelIfZero + ":\n";
+        code += "\t\tPUSH 1\t;" + rName + " is 0 so setting it to 1\n";
+        code += "\t\t" + labelEnd + ":";
+        
+        writeInCodeSegment(code);
+
         delete $2;
     }
 |   factor {
@@ -1390,6 +1446,9 @@ factor
 :   variable {
         $$ = $1;
         logFoundRule("factor", "variable", $$->getName());
+
+        if(((IdInfo*)$1)->getArraySize() > 0)
+            writeInCodeSegment("\t\tPOP BX\t;array index popped because it is no longer required");
     }
 |   ID LPAREN argument_list RPAREN {
         // It's a function call
@@ -1484,10 +1543,44 @@ factor
         $$ = new SymbolInfo($1->getName() + $2->getName(), $1->getType());
         logFoundRule("factor", "variable INCOP", $$->getName());
 
-        // first 
-        string code = "\t\tPOP AX\t;AX = " + $1->getName() + "\n";
-        code += "\t\tINC AX\t;AX = " + $1->getName() + " + 1\n";
-    
+        string varName = $1->getName();
+        string incopVal = $2->getName();
+        string incopText = incopVal == "++" ? "increment" : "decrement";
+        IdInfo* idInfo = (IdInfo*)$1;
+        // first save the value of the variable to AX
+        // then increment the value of the variable by 1 using AX
+        // set the value of the variable to its offset or to the global variable
+        string code = "\t\t;line no " + to_string(lineCount) + ": postfix " + incopText + " of " + varName + "\n";
+
+        int arraySize = idInfo->getArraySize();
+        if(arraySize > 0) {
+            code += "\t\tPOP BX\t;popped array index address\n";
+            code += "\t\tMOV AX, [BX]\t;setting AX to the value of " + varName + "\n";
+        }
+        else {
+            code += "\t\tPOP AX\t;setting AX to the value of " + varName + "\n";
+            code += "\t\tPUSH AX\t;pushing the value of " + varName + " back to stack\n";
+        }
+        
+
+        if(incopVal == "++")
+            code += "\t\tINC AX\t;incrementing " + varName + "\n";
+        else
+            code += "\t\tDEC AX\t;decrementing " + varName + "\n";
+        
+        if(idInfo->getStackOffset() != -1) {
+            if(arraySize > 0) 
+                code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+            else
+                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+        } else {
+            if(arraySize > 0)
+                code += "\t\tMOV " + varName + "[BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+            else
+                code += "\t\tMOV " + varName + ", AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+        }
+
+        writeInCodeSegment(code);
 
         delete $1;
         delete $2;
@@ -1495,6 +1588,42 @@ factor
 |   INCOP variable %prec PREFIX_INCOP {
         $$ = new SymbolInfo($1->getName() + $2->getName(), $2->getType());
         logFoundRule("factor", "INCOP variable", $$->getName());
+
+        string varName = $2->getName();
+        string incopVal = $1->getName();
+        string incopText = incopVal == "++" ? "increment" : "decrement";
+        IdInfo* idInfo = (IdInfo*)$2;
+        // first pop the value of the variable to AX
+        // then increment the value of the variable by 1 using AX
+        // push AX to the stack as it is a prefix operation
+        // set the value of the variable to its offset or to the global variable
+        int arraySize = idInfo->getArraySize();
+        string code = "\t\t;line no " + to_string(lineCount) + ": prefix " + incopText + " of " + varName + "\n";
+
+        if(arraySize > 0)
+            code += "\t\tPOP BX\t;popped array index address\n";
+        code += "\t\tPOP AX\t;popped " + varName + "\n";
+        
+        if(incopVal == "++")
+            code += "\t\tINC AX\t;incrementing " + varName + "\n";
+        else
+            code += "\t\tDEC AX\t;decrementing " + varName + "\n";
+        code += "\t\tPUSH AX\t;pushed " + varName + "\n";
+
+        if(idInfo->getStackOffset() != -1) {
+            if(arraySize > 0) 
+                code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+            else
+                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+        } else {
+            if(arraySize > 0)
+                code += "\t\tMOV " + varName + "[BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+            else
+                code += "\t\tMOV " + varName + ", AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+        }
+
+        writeInCodeSegment(code);
+
         delete $1;
         delete $2;
     }

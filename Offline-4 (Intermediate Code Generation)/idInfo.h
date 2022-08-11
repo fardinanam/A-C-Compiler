@@ -18,6 +18,11 @@ public:
         this->arraySize = 0;
     }
 
+    IdInfo(std::string name, std::string type, std::string idType, int stackOffset, int arraySize) : SymbolInfo(name, type) {
+        this->idType = idType;
+        this->stackOffset = stackOffset;
+        this->arraySize = arraySize;
+    }
 
     IdInfo(std::string name, std::string idType, int stackOffset, int arraySize) : IdInfo(name, stackOffset) {
         this->idType = idType;

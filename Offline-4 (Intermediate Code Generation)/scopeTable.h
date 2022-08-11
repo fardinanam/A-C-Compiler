@@ -14,7 +14,6 @@ class ScopeTable
 private:
     int size;
     int totalChildren;
-    int totalIds;
     SymbolInfo **hashTable;
     ScopeTable *parentScope;
     std::string id;
@@ -47,7 +46,6 @@ public:
     {
         this->size = size;
         this->totalChildren = 0;
-        this->totalIds = 0;
         this->id = "1";
         hashTable = new SymbolInfo *[size];
 
@@ -172,7 +170,7 @@ public:
      * @param isParameter is true if the ID is a parameter. 
      * @return newly inserted SymbolInfo* if insertion is successful or NULL if unsuccessful.
      */
-    SymbolInfo *insert(std::string name, std::string type, std::string idType, int arraySize, bool isParameter = false)
+    SymbolInfo *insert(std::string name, std::string type, std::string idType, int arraySize, int totalIds, bool isParameter = false)
     {
         int hashtableIndex = sdbmhash(name) % size;
         int linkedListIndex = 0;
@@ -187,11 +185,6 @@ public:
 
         if (current == NULL)
         {
-            // If it's not a parameter, then
-            // If it's an array then increase the totalIds by the arraySize
-            // else increase the totalIds by 1
-            if(!isParameter)
-                totalIds += arraySize ? arraySize : 1;
             return hashTable[hashtableIndex] = new IdInfo(name, idType, stackOffset, arraySize);
         }
         else if (name == current->getName())
@@ -223,11 +216,6 @@ public:
                 return NULL;
             }
 
-            // If it's not a parameter, then
-            // If it's an array then increase the totalIds by the arraySize
-            // else increase the totalIds by 1
-            if (!isParameter)
-                totalIds += arraySize ? arraySize : 1;
             newSymbolInfo = new IdInfo(name, idType, stackOffset, arraySize);
             current->setNext(newSymbolInfo);
 

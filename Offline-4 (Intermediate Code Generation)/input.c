@@ -1,4 +1,5 @@
 // int a,b,c[100];
+int g[3];
 
 int sum(int a, int b) {
     int s;
@@ -8,8 +9,10 @@ int sum(int a, int b) {
 
 int main() {
     // int a, b[10], c;
-    int a, b, c;
-   
+    int a, b, d[2], c;
+
+    d[1] = 20;
+    g[2] = 30;
     // a = 1;
     // a = c;
     // println(a);
@@ -28,13 +31,32 @@ int main() {
     c = b && a;
     println(c);
 
-    // {
-    //     int a;
-    //     a = 3;
-    //     println(a);
-    // }
+    {
+        int a;
+        a = 3;
+        println(a);
+    }
 
     c = sum(a, b);
+    println(c);
+    c = -c;
+    println(c);
+    c = !c;
+    println(c);
+
+    c++;
+    println(c);
+    ++c;
+    println(c);
+
+    c = ++d[1];
+    println(c);
+    c = d[1];
+    println(c);
+
+    c = ++g[2];
+    println(c);
+    c = g[2];
     println(c);
 
     return 0;

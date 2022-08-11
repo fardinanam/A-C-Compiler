@@ -12,6 +12,7 @@
 class SymbolTable {
 private:
     int sizeOfScopeTables;
+    int totalIdsInCurrentFunction;
     ScopeTable* rootScopeTable;
     ScopeTable* currentScopeTable;
     std::list<FunctionInfo*> functions;
@@ -26,6 +27,7 @@ public:
         this->sizeOfScopeTables = sizeOfScopeTables;
         rootScopeTable = new ScopeTable(sizeOfScopeTables);
         currentScopeTable = rootScopeTable;
+        totalIdsInCurrentFunction = 0;
     }
 
     /**
@@ -39,6 +41,13 @@ public:
         } else {
             currentScopeTable = new ScopeTable(sizeOfScopeTables, currentScopeTable);
         }
+    }
+
+    // reset the total id count for the current function
+    // It is required to reset the count after every function definition
+    // to work with stack offsets in ASM properly
+    void resetTotalIdsInCurrentFunction() {
+        totalIdsInCurrentFunction = 0;
     }
 
     /**
@@ -105,7 +114,15 @@ public:
             enterScope();
         }
 
-        return currentScopeTable->insert(name, type, idType, arraySize, isParameter);
+        SymbolInfo* symbolInfo = currentScopeTable->insert(name, type, idType, arraySize, totalIdsInCurrentFunction, isParameter);
+        if(symbolInfo != NULL && !isParameter) {
+            // If it's not a parameter, then
+            // If it's an array then increase the totalIds by the arraySize
+            // else increase the totalIds by 1
+            totalIdsInCurrentFunction += arraySize ? arraySize : 1;
+        }
+
+        return symbolInfo;
     }
 
     bool containsFunction(std::string name) {
