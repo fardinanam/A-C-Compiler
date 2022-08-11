@@ -35,7 +35,6 @@
 
     ofstream logFile;
     ofstream errorFile;
-    ofstream codeFile;
 
     int yyparse(void);
     int yylex(void);
@@ -346,8 +345,6 @@
         write("code.asm", code, true);
         increaseCodeSegmentEndLine(1);
 
-        cout << "Procedure " + id + " declared at line " << asmCodeSegmentEndLine << endl;
-
         if(id == "main") {
             initializeAsmMain();
         } else {
@@ -377,7 +374,7 @@
 
         if(funcName == "main") {
             terminateAsmMain();
-        } else {
+        } else if(funcReturnType == "CONST_VOID") {
             string code = "\t\tMOV SP, BP\t;Restoring SP at the end of function\n";
             code += "\t\tPOP BP\t;restoring BP at the end of function\n";
             code += "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "");
@@ -865,12 +862,15 @@ statements
 generate_if_block
 :    {
         string labelElse = newLabel();
+        string labelElseBypass = newLabel();
         $$ = new SymbolInfo(labelElse, "LABEL");
 
         string code = "\t\t;line no " + to_string(lineCount) + ": evaluating if block\n";
         code += "\t\tPOP AX\t;popped expression value\n";
         code += "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
-        code += "\t\tJE " + labelElse + "\t;if false jump to end of if block";
+        code += "\t\tJNE " + labelElseBypass + "\n";
+        code += "\t\tJMP " + labelElse + "\t;if false jump to end of if block\n";
+        code += "\t\t" + labelElseBypass + ":\n";
 
         writeInCodeSegment(code);
     }
@@ -900,9 +900,13 @@ statement
     }
     expression_statement {
         string labelEnd = newLabel();
+        string labelEndBypass = newLabel();
+
         string code = "\t\tPOP AX\t;popped " + $6->getName() + "\n";
         code += "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
-        code += "\t\tJE " + labelEnd + "\t;if false jump to end of for loop";
+        code += "\t\tJNE " + labelEndBypass + "\n";
+        code += "\t\tJMP " + labelEnd + "\t;if false jump to end of for loop\n";
+        code += "\t\t" + labelEndBypass + ":\n";
 
         writeInCodeSegment(code);
         $<symbolInfo>$ = new SymbolInfo(labelEnd, "LABEL");
@@ -969,12 +973,38 @@ statement
         delete $<symbolInfo>8;
         delete $9;
     }
-|   WHILE LPAREN expression RPAREN statement {
-        $$ = new SymbolInfo("while(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
+|   WHILE { 
+        string labelWhile = newLabel();
+        $<symbolInfo>$ = new SymbolInfo(labelWhile, "LABEL");
+        writeInCodeSegment("\t\t" + labelWhile + ":\t;while loop start label\n");
+    } LPAREN expression {
+        string labelEnd = newLabel();
+        string labelEndBypass = newLabel();
+        $<symbolInfo>$ = new SymbolInfo(labelEnd, "LABEL");
+
+        string code = "\t\tPOP AX\t;popped " + $4->getName() + "\n";
+        code += "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
+        code += "\t\tJNE " + labelEndBypass + "\n";
+        code += "\t\tJMP " + labelEnd + "\t;if false jump to end of while loop\n";
+        code += "\t\t" + labelEndBypass + ":\n";
+
+        writeInCodeSegment(code);
+    }
+    RPAREN statement {
+        $$ = new SymbolInfo("while(" + $4->getName() + ")" + $7->getName(), "VARIABLE");
         logFoundRule("statement", "WHILE LPAREN expression RPAREN statement", $$->getName());
 
-        delete $3;
-        delete $5;
+        string labelWhile = $<symbolInfo>2->getName();
+        string labelEnd = $<symbolInfo>5->getName();
+        string code = "\t\tJMP " + labelWhile + "\n";
+        code += "\t\t" + labelEnd + ":\t;while loop end label\n";
+
+        writeInCodeSegment(code);
+
+        delete $<symbolInfo>2;
+        delete $4;
+        delete $<symbolInfo>5;
+        delete $7;
     }
 |   PRINTLN LPAREN ID RPAREN SEMICOLON {
         string id = $3->getName();
@@ -982,10 +1012,15 @@ statement
         logFoundRule("statement", "PRINTLN LPAREN ID RPAREN SEMICOLON");
         
         IdInfo* idInfo = (IdInfo*)symbolTable.lookUp(id);
-        string str = "\n";
-        str += "\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;passing " + id + " to PRINT_INTEGER\n";
-        str += "\t\tCALL PRINT_INTEGER\n";
-        writeInCodeSegment(str);
+        string code = "\n";
+
+        if(idInfo->getStackOffset() != -1)
+            code += "\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;passing " + id + " to PRINT_INTEGER\n";
+        else
+            code += "\t\tPUSH " + id + "\t;passing " + id + " to PRINT_INTEGER\n";
+
+        code += "\t\tCALL PRINT_INTEGER\n";
+        writeInCodeSegment(code);
 
         if(symbolTable.lookUp(id) == NULL) 
             errorMessage("Undeclared variable " + id);
@@ -1023,11 +1058,20 @@ statement
             }
         }
 
-        // Procedures in ASM return its return value in AX
-        if(funcReturnType != "CONST_VOID") {
-            writeInCodeSegment("\t\tPOP AX\t;saving return value in AX");
-        }
+        string code = "\t\tPOP AX\t;saving returned value in AX\n";
+        if(funcName != "main") {
+            // save the return value in AX
+            // and return to the caller            
+            FunctionInfo* funcInfo = (FunctionInfo*)symbolTable.lookUp(funcName);
+            int noOfParams = funcInfo != NULL ? funcInfo->getNumberOfParameters() : 0;
             
+            code += "\t\tMOV SP, BP\t;Restoring SP at the end of function\n";
+            code += "\t\tPOP BP\t;restoring BP at the end of function\n";
+            code += "\t\tRET " + (noOfParams ? to_string(noOfParams * 2) : "");
+            writeInCodeSegment(code);
+        } else {
+            terminateAsmMain();
+        }
         logMatchedString(name);
         $$ = new SymbolInfo(name, type);
         delete $2;
@@ -1377,6 +1421,7 @@ simple_expression
         string lType = $1->getType();
         string rType = $3->getType();
         string name = $1->getName() + $2->getName() + $3->getName();
+        string addop = $2->getName();
         string type = rType;
 
         logFoundRule("simple_expression", "simple_expression ADDOP term");
@@ -1394,16 +1439,14 @@ simple_expression
 
         logMatchedString(name);
 
-        string code = "\t\t;line no " + to_string(lineCount) + ": Adding " + $1->getName() + " and " + $3->getName() + "\n";
-        code += "\t\tPOP AX\t;" + $3->getName() + " popped\n";
-        code += "\t\tPOP BX\t;" + $1->getName() + " popped\n";
+        string addopText = addop == "+" ? "ADD" : "SUB";
+        string code = "\t\t;line no " + to_string(lineCount) + ": " + addopText + " " +  $1->getName() + " and " + $3->getName() + "\n";
+        code += "\t\tPOP BX\t;" + $3->getName() + " popped\n";
+        code += "\t\tPOP AX\t;" + $1->getName() + " popped\n";
 
-        if($2->getName() == "+")
-            code += "\t\tADD AX, BX\n";
-        else
-            code += "\t\tSUB AX, BX\n";
+        code += "\t\t" + addopText + " AX, BX\n";
 
-        code += "\t\tPUSH AX\t;pushed " + $1->getName() + " + " + $3->getName() + "\n";
+        code += "\t\tPUSH AX\t;pushed " + $1->getName() + addop + $3->getName() + "\n";
         writeInCodeSegment(code);
 
         $$ = new SymbolInfo(name, type);
@@ -1797,6 +1840,7 @@ void writeProcPrintln() {
 * Function that writes the required starting code to run the 8086 assembly code to the code.asm file
 */
 void initializeAssembplyFile() {
+    ofstream codeFile;
     codeFile.open("code.asm");
 
     if(!codeFile.is_open()) {
@@ -1821,6 +1865,7 @@ void initializeAssembplyFile() {
 * Function that writes the required ending code to run the 8086 assembly code to the code.asm file
 */
 void terminateAssemblyCode() {
+    ofstream codeFile;
     codeFile.open("code.asm", ios_base::app);
 
     if(!codeFile.is_open()) {
@@ -1856,11 +1901,15 @@ int main(int argc, char* argv[]) {
     yyin = fin;
     yyparse();
 
-    terminateAssemblyCode();
+    if(errorCount > 0) {
+        ofstream codeFile("code.asm");
+        codeFile.close();
+    } else {
+        terminateAssemblyCode();
+    }
 
     errorFile.close();
     logFile.close();
-    codeFile.close();
     fclose(fin);
     
     return 0;
