@@ -24,7 +24,6 @@
     int asmLineCount = 0;                   //line count for generating assembly code
     int asmDataSegmentEndLine = 0;          //line count for end of data segment
     int asmCodeSegmentEndLine = 0;          //line count for end of code segment
-    int asmExpressionLine = -1;             //Line no at which expression is to be evaluated
     bool inForLoop = false;                 //Flag to check if we are in for loop
 
     list<pair<string, string> > parameters; // Contains the parameter list <name, type> of the currently declared function
@@ -385,20 +384,6 @@
 
         write("code.asm", "\t" + id + " ENDP", true);
         increaseCodeSegmentEndLine(1);
-    }
-
-    void writeAtExpressionLine(string str, int noOfLines) {
-        if(errorCount > 0) {
-            return;
-        }
-
-        // -1 indicated that this should be the start of the expression
-        if(asmExpressionLine == -1) {
-            asmExpressionLine = asmCodeSegmentEndLine;
-        }
-        // cout << "written:\n" << str << "\nAt line: " << asmExpressionLine << endl;
-        writeAt("code.asm", str, asmExpressionLine);
-        increaseCodeSegmentEndLine(noOfLines);
     }
 
     string relopSymbolToAsmJumpText(string symbol) {
@@ -1101,18 +1086,11 @@ statement
 expression_statement
 :   SEMICOLON {
         $$ = new SymbolInfo(";", "VARIABLE");
-        logFoundRule("expression_statement", "SEMICOLON", $$->getName());
-
-        // make asmExpressionLine = -1 to indicate that the expression is terminated
-        asmExpressionLine = -1;
-        
+        logFoundRule("expression_statement", "SEMICOLON", $$->getName());  
     }
 |   expression SEMICOLON {
         $$ = new SymbolInfo($1->getName() + ";", $1->getType());
         logFoundRule("expression_statement", "expression SEMICOLON", $$->getName());
-
-        // make asmExpressionLine = -1 to indicate that the expression is terminated
-        asmExpressionLine = -1;
 
         // There is always an extra push after every expression
         // So, we need to pop it out after we get a semicolon after an expression
@@ -1144,10 +1122,8 @@ variable
 
             // Write in ASM code
             if(idInfo->getStackOffset() == -1) {
-                // writeAtExpressionLine("\t\tPUSH " + id + "\texpression evaluation;", 1);
                 writeInCodeSegment("\t\tPUSH " + id + "\t;expression evaluation");
             } else {
-                // writeAtExpressionLine("\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;" + idInfo->getName() + " pushed", 1);
                 writeInCodeSegment("\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t; " + idInfo->getName() + " pushed");
             }
         }
@@ -1282,10 +1258,6 @@ logic_expression
 :   rel_expression {
         $$ = $1;
         logFoundRule("logic_expression", "rel_expression", $$->getName());
-
-        // In all the productions where there is a logic_expression, the expression is terminated
-        // so make asmExpressionLine = -1 to indicate that the expression is terminated
-        asmExpressionLine = -1;
     }
 |   rel_expression LOGICOP rel_expression {
         string lName = $1->getName();
@@ -1306,10 +1278,6 @@ logic_expression
         // both sides of logical operator
         
         logMatchedString($$->getName());
-        
-        // In all the productions where there is a logic_expression, the expression is terminated
-        // so make asmExpressionLine = -1 to indicate that the expression is terminated
-        asmExpressionLine = -1;
 
         string code = "\t\t;line no " + to_string(lineCount) + ": " + lName + logicop + rName + "\n";
         if(logicop == "&&") {
@@ -1644,16 +1612,11 @@ factor
         string value = $$->getName();
         logFoundRule("factor", "CONST_INT", value);
 
-        // writeAtExpressionLine("\t\tPUSH " + value, 1);
         writeInCodeSegment("\t\tPUSH " + value);
     }
 |   CONST_FLOAT {
         $$ = $1;
         logFoundRule("factor", "CONST_FLOAT", $$->getName());
-
-        // write ASM code for expression evaluation
-        // writeAtExpressionLine("\t\tPUSH " + $$->getName(), 1);
-        // writeInCodeSegment("\t\tPUSH " + $$->getName());
     }
 |   CONST_CHAR {
         $$ = $1;
