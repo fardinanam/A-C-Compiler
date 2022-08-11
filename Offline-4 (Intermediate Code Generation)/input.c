@@ -9,55 +9,91 @@ int sum(int a, int b) {
 
 int main() {
     // int a, b[10], c;
-    int a, b, d[2], c;
+    int i, j, k;
 
-    d[1] = 20;
-    g[2] = 30;
-    // a = 1;
-    // a = c;
-    // println(a);
-    a = 10;
-    b = 3;
-    c = a + 2*b;
-    println(c);
+    i = 3;
+    j = 8;
+    k = 6;
 
-    b = a <= c;
-    println(b);
-
-    a = 0;
-    b = 10;
-    c = a || b;
-    println(c);
-    c = b && a;
-    println(c);
-
+    if (i == 3)
     {
-        int a;
-        a = 3;
-        println(a);
+        println(j);
     }
 
-    c = sum(a, b);
-    println(c);
-    c = -c;
-    println(c);
-    c = !c;
-    println(c);
+    if (j < 8)
+    {
+        println(i);
+    }
+    else
+    {
+        println(k);
+    }
 
-    c++;
-    println(c);
-    ++c;
-    println(c);
+    if (k != 6)
+    {
+        println(k);
+    }
+    else if (j > 8)
+    {
+        println(j);
+    }
+    else if (i < 2)
+    {
+        println(i);
+    }
+    else
+    {
+        k = 0;
+        println(k);
+    }
 
-    c = ++d[1];
-    println(c);
-    c = d[1];
-    println(c);
+    // d[1] = 20;
+    // g[2] = 30;
+    // // a = 1;
+    // // a = c;
+    // // println(a);
+    // a = 10;
+    // b = 3;
+    // c = a + 2*b;
+    // println(c);
 
-    c = ++g[2];
-    println(c);
-    c = g[2];
-    println(c);
+    // b = a <= c;
+    // println(b);
+
+    // a = 0;
+    // b = 10;
+    // c = a || b;
+    // println(c);
+    // c = b && a;
+    // println(c);
+
+    // {
+    //     int a;
+    //     a = 3;
+    //     println(a);
+    // }
+
+    // c = sum(a, b);
+    // println(c);
+    // c = -c;
+    // println(c);
+    // c = !c;
+    // println(c);
+
+    // c++;
+    // println(c);
+    // ++c;
+    // println(c);
+
+    // c = ++d[1];
+    // println(c);
+    // c = d[1];
+    // println(c);
+
+    // c = ++g[2];
+    // println(c);
+    // c = g[2];
+    // println(c);
 
     return 0;
 }

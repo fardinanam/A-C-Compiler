@@ -431,7 +431,7 @@
 %token<symbolInfo> CONST_INT CONST_FLOAT CONST_CHAR ADDOP MULOP RELOP LOGICOP INCOP ID ARITHASSIGNOP
 
 %type<symbolInfo> program unit func_prototype func_declaration func_definition parameter_list compound_statement var_declaration
-type_specifier declaration_list statements statement expression_statement variable expression
+type_specifier declaration_list statements statement expression_statement variable expression generate_if_block
 logic_expression rel_expression simple_expression term unary_expression factor argument_list arguments
 
 %destructor {delete $$;} <symbolInfo>
@@ -859,6 +859,19 @@ statements
     }
 ;
 
+generate_if_block
+:    {
+        string labelElse = newLabel();
+        $$ = new SymbolInfo(labelElse, "LABEL");
+
+        string code = "\t\t;line no " + to_string(lineCount) + ": evaluating if block\n";
+        code += "\t\tPOP AX\t;popped expression value\n";
+        code += "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
+        code += "\t\tJE " + labelElse + "\t;if false jump to end of if block";
+
+        writeInCodeSegment(code);
+    }
+
 statement
 :   var_declaration {
         $$ = $1;
@@ -880,19 +893,39 @@ statement
         delete $5;
         delete $7;
     }  
-|   IF LPAREN expression RPAREN statement %prec LOWER_THAN_ELSE {
-        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
+|   IF LPAREN expression RPAREN generate_if_block statement %prec LOWER_THAN_ELSE {
+        writeInCodeSegment("\t\t" + $5->getName() + ":\n");
+        
+        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $6->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement", $$->getName());
-        delete $3;
+
         delete $5;
+        delete $3;
+        delete $6;
     }
-|   IF LPAREN expression RPAREN statement ELSE statement {
-        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $5->getName() + "else\n" + $7->getName(), "VARIABLE");
+|   IF LPAREN expression RPAREN generate_if_block statement ELSE {
+        // if "if" block is executed then jump directly to the end of if else block
+        // else start the else block
+        // pass the end label
+        string labelEnd = newLabel();
+        string code = "\t\tJMP " + labelEnd + "\n";
+        code += "\t\t" + $5->getName() + ":";
+
+        writeInCodeSegment(code);
+
+        $<symbolInfo>$ = new SymbolInfo(labelEnd, "LABEL");
+    } statement {
+        $$ = new SymbolInfo("if(" + $3->getName() + ")" + $6->getName() + "else\n" + $9->getName(), "VARIABLE");
         logFoundRule("statement", "IF LPAREN expression RPAREN statement ELSE statement", $$->getName());
+
+        // just insert the end label
+        writeInCodeSegment("\t\t" + $<symbolInfo>8->getName() + ":\n");
 
         delete $3;
         delete $5;
-        delete $7;
+        delete $6;
+        delete $<symbolInfo>8;
+        delete $9;
     }
 |   WHILE LPAREN expression RPAREN statement {
         $$ = new SymbolInfo("while(" + $3->getName() + ")" + $5->getName(), "VARIABLE");
@@ -1603,7 +1636,7 @@ factor
         if(arraySize > 0)
             code += "\t\tPOP BX\t;popped array index address\n";
         code += "\t\tPOP AX\t;popped " + varName + "\n";
-        
+
         if(incopVal == "++")
             code += "\t\tINC AX\t;incrementing " + varName + "\n";
         else
