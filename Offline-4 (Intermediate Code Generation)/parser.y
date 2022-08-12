@@ -24,7 +24,6 @@
     int asmLineCount = 0;                   //line count for generating assembly code
     int asmDataSegmentEndLine = 0;          //line count for end of data segment
     int asmCodeSegmentEndLine = 0;          //line count for end of code segment
-    bool inForLoop = false;                 //Flag to check if we are in for loop
 
     list<pair<string, string> > parameters; // Contains the parameter list <name, type> of the currently declared function
     list<SymbolInfo*> argList;              // Contans argument list while calling a function
@@ -873,11 +872,9 @@ statement
         $$ = $1;
         logFoundRule("statement", "compound_statement", $$->getName());
     }
-|   FOR { inForLoop = true; } 
-    LPAREN expression_statement {
+|   FOR LPAREN expression_statement {
         string labelFor = newLabel();
         string code = "\t\t;line no " + to_string(lineCount) + ": evaluating for loop\n";
-        code += "\t\tPOP AX\t;popped " + $4->getName() + "\n";
         code += "\t\t" + labelFor + ":\t;For loop start label\n";
 
         writeInCodeSegment(code);
@@ -887,8 +884,7 @@ statement
         string labelEnd = newLabel();
         string labelEndBypass = newLabel();
 
-        string code = "\t\tPOP AX\t;popped " + $6->getName() + "\n";
-        code += "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
+        string code = "\t\tCMP AX, 0\t;compare with 0 to see if the expression is false\n";
         code += "\t\tJNE " + labelEndBypass + "\n";
         code += "\t\tJMP " + labelEnd + "\t;if false jump to end of for loop\n";
         code += "\t\t" + labelEndBypass + ":\n";
@@ -898,31 +894,29 @@ statement
     } 
     { $<intValue>$ = asmCodeSegmentEndLine; }
     expression {
-        string labelFor = $<symbolInfo>5->getName();
-        string labelEnd = $<symbolInfo>7->getName();
-        string code = "\t\tPOP AX\t;popped " + $9->getName() + "\n";
+        string labelFor = $<symbolInfo>4->getName();
+        string labelEnd = $<symbolInfo>6->getName();
+        string code = "\t\tPOP AX\t;popped " + $8->getName() + "\n";
         code += "\t\tJMP " + labelFor + "\t;jump back to for loop\n";
         code += "\t\t" + labelEnd + ":\n";
         
         writeInCodeSegment(code);
         // forcefully changing asmCodeSegment end line before the line of the expression
         // so that the expression is evaluated after the for loop statement is executed
-        asmCodeSegmentEndLine = $<intValue>8;
+        asmCodeSegmentEndLine = $<intValue>7;
     }
     RPAREN statement {
-        $$ = new SymbolInfo("for(" + $4->getName() + $6->getName() + $9->getName() + ")" + $12->getName(), "VARIABLE");
+        $$ = new SymbolInfo("for(" + $3->getName() + $5->getName() + $8->getName() + ")" + $11->getName(), "VARIABLE");
         logFoundRule("statement", "FOR LPAREN expression_statement expression_statement expression RPAREN statement", $$->getName());
 
-        // end of for loop
-        inForLoop = false;
         // relocating the asmCodeSegment end line to the end of the for loop statement
         asmCodeSegmentEndLine = asmLineCount;
-        delete $4;
-        delete $<symbolInfo>5;
-        delete $6;
-        delete $<symbolInfo>7;
-        delete $9;
-        delete $12;
+        delete $3;
+        delete $<symbolInfo>4;
+        delete $5;
+        delete $<symbolInfo>6;
+        delete $8;
+        delete $11;
     }  
 |   IF LPAREN expression RPAREN generate_if_block statement %prec LOWER_THAN_ELSE {
         writeInCodeSegment("\t\t" + $5->getName() + ":\n");
@@ -1094,9 +1088,8 @@ expression_statement
 
         // There is always an extra push after every expression
         // So, we need to pop it out after we get a semicolon after an expression
-        // But not when the expression is in a for loop
-        if(!inForLoop)
-            writeInCodeSegment("\t\tPOP AX\t;Popped out " + $1->getName());
+        writeInCodeSegment("\t\tPOP AX\t;Popped out " + $1->getName());
+
         delete $1;
     }
 |   expression error {

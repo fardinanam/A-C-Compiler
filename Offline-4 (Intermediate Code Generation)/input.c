@@ -8,7 +8,7 @@ int f(int a)
         k--;
     }
     return 3 * a - 7;
-    // a = 9;
+    a = 9;
 }
 
 int g(int a, int b)
@@ -51,4 +51,5 @@ int main()
     println(a);
     println(b);
     println(i);
+    return 0;
 }
