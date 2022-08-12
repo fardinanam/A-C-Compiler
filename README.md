@@ -8,7 +8,7 @@ This is a C compiler that performs some error checking with the help of Flex (le
 - <a href="#lexical-analyser">Lexical Analyser</a>
 - <a href="#syntax-analyser">Syntax Analyser</a>
 - <a href="#semantic-analyser">Semantic Analyser</a>
-- <a href="#code-generator">Code Generator</a>
+- <a href="#intermediate-code-generation">Intermediate Code Generation</a>
 
 ## Lexical Analyser
 
