@@ -4,6 +4,12 @@
 
 This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
 
+### Table of Contents
+- <a href="#Lexical-Analyser">Lexical Analyser</a>
+- <a href="#Syntax-Analyser">Syntax Analyser</a>
+- <a href="#Semantic-Analyser">Semantic Analyser</a>
+- <a href="#Code-Generator">Code Generator</a>
+
 ## Lexical Analyser
 
 ### Lexer returns the following tokens to the parser:
@@ -166,4 +172,139 @@ Used to check the consistancy of different terms and expressions with variable t
         FUNC_VOID (If the return type of a function is void. This is only used in function calls to check if a void function is used in an expression or not)
         VARIABLE (Any other type of non terminals.)
         
+# Intermediate Code Generation
+After the syntax analyser and the semantic analyser confirms that the source program is correct, the compiler generates the intermediate code.  Ideally a three address code is generated in real life compilers. But we have used `8086 Assembly Language` as our intermediate code so that we can run it in `emu 8086` and justify that our compilation is correct.
 
+## Intermediate code generation strategy:
+#### The Algorithm:
+We have generated the intermediate code on the fly. Which means that, instead of using any data structure and passing the whole code one after another to the production rules of the grammar, we have generated the intermediate code as soon as we match a rule and write it in the `code.asm` file. To do that, we have to use the `PUSH` and `POP` instructions in the assembly code which utilize the stack.
+
+- Let's understand the algorithm with an example.
+Let't say we have a grammar like this: 
+
+        E -> E + T
+        E -> T
+        T -> T * F
+        T -> F
+        F -> id
+        F -> digit
+
+- While bison evaluates any string like `a + 2 * c` the lexer will first read the string and generate the tokens like `id, +, digit, *, id`. So the order of the matched rules will be as follows:
+
+        a found : F -> id reduced
+        + found : nothing reduced (no rules matched yet)
+        2 found : F -> digit reduced
+        * found : nothing reduced (no rules matched yet)
+        c found : F -> id reduced
+
+- So, at first only the production rules of `F` matched. So, we are going to push the `id` and `digit` tokens to the stack of 8086 code.
+
+        
+```asm
+        PUSH a 
+        PUSH 2
+        PUSH c
+```
+The stack will look like this now:
+
+        SP -> c
+              2
+              a
+
+        * here SP points to the top of the stack
+
+- Now that all the lexemes are matched, the parser will match the production rules of `E` and `T` as follows:
+
+- As '2' and 'a' reduced to 'F' previously,
+now for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match the rule corresponding to '*'
+
+        2 * c found : T -> T * F reduced
+
+- As this rule has been matched, we are going to `pop` the `id` tokens from the stack, evaluate the multiplication operation and push the result to the stack.
+
+```asm
+        POP BX          ;this will pop c from the stack
+        POP AX          ;this will pop 2 from the stack
+        MUL BX          ;this will multiply 2 with c and store the result in AX
+        PUSH AX         ;this will push the result of 2 * c to the stack
+```
+
+- Now the stack will look like this:
+
+        SP -> 2*c
+              a
+
+- Similarly `E -> E + T` will now be reduced. So, we can pop the last two valued from the stack and simply add them.
+
+```asm
+        POP BX          ;this will pop 2*c from the stack
+        POP AX          ;this will pop a from the stack
+        ADD AX, BX      ;this will add a and 2*c and store the result in AX
+        PUSH AX         ;this will push the result of a+2*c  to the stack
+```
+
+- `Note 1`: After the whole expression is evaluated, the value of the expression is already pushed in the stack. So, we can use it in our next expression if needed or we can just pop it. For example, if we had `d = a + 2 * c`, we could use the value of `a + 2 * c` in `d` by popping it out. The stack will look like this:
+
+        SP -> a + 2*c
+              d     
+        
+        * here 'd' was pushed because it matched F -> id first. But this value of 'd' is useless. So, we can pop it out.
+
+- Here is the required asm code to evaluate the expression
+```asm
+        POP BX          ;this will pop a+2*c from the stack
+        POP AX          ;this will pop the (useless) value of d from the stack
+        MOV d, BX       ;this will store the value of a+2*c in d
+        PUSH BX         ;this will push the value of d to the stack
+```
+- The stack will look like this now:
+
+        SP -> d
+
+- `Note2`: With the above algorithm, we can evaluate any expression. But the catch is that, there is always an extra `PUSH` at the end of every expression. So, when we don't need that value, we can just pop it out. i.e; when we get a SEMICOLON `;` after the expression above, that will mean that the expression is over. For the example above, if it ends with a semicolon then we don't need the value of d anymore. So, we can pop it out like this:
+
+```asm
+        POP BX          ;this will pop d from the stack
+```
+- The stack is empty again.
+
+#### Evaluating `for` loop is somewhat tricky:
+- Though the above algorithm works for every expressions used in the code, it requires a small trick to evaluate for loops. A for loop looks like this:
+
+        expression -> FOR LPAREN expression_statement expression_statement expression RPAREN LCURL statements RCURL
+        expression_statement -> expression SEMICOLON
+
+- Though we need the evaluated value of the second expression to check if the loop should continue or not. But the value of that expression is popped out of the stack because of the SEMICOLON `;`.
+
+- The solution that we have used is that we have taken a flag to check if the expression is in a for loop or not. If it is, then we don't need to pop the value of the expression. If it is not, then we can pop it out.
+
+- Another problem in evaluating `for` loops is that we need to evaluate the third expression after the statements in the curly braces are executed. Here, we have done this by saving the line number of the starting of third expression and then inserting the codes corresponding the statements from that line. The following sudo code might help:
+
+        expression -> FOR { isInForLoop = true; } 
+                LPAREN expression_statement expression_statement 
+                { 
+                        lineNo = currentLineNo; // Saves the line number before third expression 
+                } 
+                expression RPAREN LCURL statements RCURL 
+                { isInForLoop = false; }
+        statements ->  {
+                        if(isInForLoop) {
+                                insertCode(lineNo);
+                        } else {
+                                insertCode(currentLineNo);
+                        }
+                }
+        expression_statement -> expression SEMICOLON {
+                        if(!isInForLoop) {
+                                insertCode("POP AX");
+                        } else {
+                                // Don't POP
+                        }
+                }
+
+#### Evaluating `functions`:
+- Please read pages 303-305 (14.5.3 Using the stack for procedures) of the book [Assembly Language Programming and Organization of the IBM PC by Ytha Yu, Charles Marut](https://drive.google.com/file/d/1Gt-PvcimLN0oiuXbkhZ6KVM2X6POcqcM/view?usp=sharing)
+#### Conclusion
+- It requires a lot of push and pop instructions in this approach. So, sometimes the same value is pushed and popped consecutively. For that reason, an optimization is required. This is called peephole optimization. We have done it in the second pass (after all the expressions are evaluated).
+
+## Optimizing assembly code

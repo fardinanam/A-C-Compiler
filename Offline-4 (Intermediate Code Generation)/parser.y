@@ -1178,8 +1178,6 @@ variable
                 code += "\t\tPUSH AX\t;pushing the value of the array element at index " + $3->getName() + "\n";
                 code += "\t\tPUSH BX\t;pushing the index of the array";
                 writeInCodeSegment(code);
-
-                cout << "Okay in variable\n";
             }            
         } else {
             errorMessage(id + " not an array");
