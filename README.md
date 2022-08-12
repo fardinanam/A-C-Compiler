@@ -172,15 +172,24 @@ Used to check the consistancy of different terms and expressions with variable t
         FUNC_VOID (If the return type of a function is void. This is only used in function calls to check if a void function is used in an expression or not)
         VARIABLE (Any other type of non terminals.)
         
-# Intermediate Code Generation
+## Intermediate Code Generation
 After the syntax analyser and the semantic analyser confirms that the source program is correct, the compiler generates the intermediate code.  Ideally a three address code is generated in real life compilers. But we have used `8086 Assembly Language` as our intermediate code so that we can run it in `emu 8086` and justify that our compilation is correct.
 
-## Intermediate code generation strategy:
+### On the fly intermediate code generation strategy:
+
+#### Table of Contents:
+- [The Algorithm](#the-algorithm)
+- [Evaluating `for` loop is somewhat tricky](#evaluating-for-loop-is-somewhat-tricky)
+- [Evaluating `functions`](#evaluating-functions)
+- [Declaring variables](#declaring-variables)
+- [Conclusion](#conclusion)
+
+
 #### The Algorithm:
 We have generated the intermediate code on the fly. Which means that, instead of using any data structure and passing the whole code one after another to the production rules of the grammar, we have generated the intermediate code as soon as we match a rule and write it in the `code.asm` file. To do that, we have to use the `PUSH` and `POP` instructions in the assembly code which utilize the stack.
 
 - Let's understand the algorithm with an example.
-Let't say we have a grammar like this: 
+Let's say we have a grammar like this: 
 
         E -> E + T
         E -> T
@@ -234,7 +243,7 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
         SP -> 2*c
               a
 
-- Similarly `E -> E + T` will now be reduced. So, we can pop the last two valued from the stack and simply add them.
+- Similarly `E -> E + T` will now be reduced. So, we can pop the last two values from the stack and simply add them.
 
 ```asm
         POP BX          ;this will pop 2*c from the stack
@@ -255,7 +264,7 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
         POP BX          ;this will pop a+2*c from the stack
         POP AX          ;this will pop the (useless) value of d from the stack
         MOV d, BX       ;this will store the value of a+2*c in d
-        PUSH BX         ;this will push the value of d to the stack
+        PUSH d         ;this will push the value of d to the stack
 ```
 - The stack will look like this now:
 
@@ -288,49 +297,100 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
         POP BX          ;this will pop a+2*c from the stack
         POP AX          ;this will pop the (useless) value of d from the stack
         MOV d, BX       ;this will store the value of a+2*c in d
-        PUSH BX         ;this will push the value of d to the stack
-        
+        PUSH d         ;this will push the value of d to the stack
+
         POP BX          ;this will pop d (useless) from the stack. This was pushed at the start of the expression.
 ```
 - If there was no semicolon in the expression, then we would not pop out the last value of d. This helps in passing parameters to functions or evaluating if statements.
 
 #### Evaluating `for` loop is somewhat tricky:
-- Though the above algorithm works for every expressions used in the code, it requires a small trick to evaluate for loops. A for loop looks like this:
+- Though the above algorithm works for every expression used in the code, it requires a small trick to evaluate for loops. A for loop's grammar looks like this:
 
-        expression -> FOR LPAREN expression_statement expression_statement expression RPAREN LCURL statements RCURL
-        expression_statement -> expression SEMICOLON
+```bison
+expression -> FOR LPAREN expression_statement expression_statement expression RPAREN LCURL statements RCURL
+expression_statement -> expression SEMICOLON
+```
 
-- Though we need the evaluated value of the second expression to check if the loop should continue or not, the value of that expression is popped out of the stack because of the SEMICOLON `;`.
+- The problem in evaluating `for` loops is that we need to evaluate the third expression after the statements in the curly braces are executed. Here, we have done this by saving the line number of the starting of third expression and then inserting the codes corresponding the statements from that line. The following pseudo code might help:
 
-- The solution is that, we have taken a flag to check if the expression is in a for loop or not. If it is, then we don't need to pop the value of the expression. If it is not, then we can pop it out.
+```pseudo
+expression -> FOR LPAREN expression_statement expression_statement 
+        { 
+                isInForLoop = true;
+                lineNo = currentLineNo; // Saves the line number before third expression 
+        } 
+        expression RPAREN LCURL statements RCURL 
 
-- Another problem in evaluating `for` loops is that we need to evaluate the third expression after the statements in the curly braces are executed. Here, we have done this by saving the line number of the starting of third expression and then inserting the codes corresponding the statements from that line. The following sudo code might help:
-
-        expression -> FOR { isInForLoop = true; } 
-                LPAREN expression_statement expression_statement 
-                { 
-                        lineNo = currentLineNo; // Saves the line number before third expression 
-                } 
-                expression RPAREN LCURL statements RCURL 
-                { isInForLoop = false; }
-        statements ->  {
-                        if(isInForLoop) {
-                                insertCode(lineNo);
-                        } else {
-                                insertCode(currentLineNo);
-                        }
+statements -> ... {
+                if(isInForLoop) {
+                        insertCode(lineNo);
+                } else {
+                        insertCode(currentLineNo);
                 }
-        expression_statement -> expression SEMICOLON {
-                        if(!isInForLoop) {
-                                insertCode("POP AX");
-                        } else {
-                                // Don't POP
-                        }
-                }
+        }
+
+/* You might need to write a function to insert text in the middle of a file. */
+```
 
 #### Evaluating `functions`:
 - Please read pages 303-305 (14.5.3 Using the stack for procedures) of the book [Assembly Language Programming and Organization of the IBM PC by Ytha Yu, Charles Marut](https://drive.google.com/file/d/1Gt-PvcimLN0oiuXbkhZ6KVM2X6POcqcM/view?usp=sharing)
+
+#### Declaring variables:
+- **Global variables**: We have inserted the global variables in the data segment. This is done by saving the end line number of the data segment in a variable and then inserting the code corresponding to the global variables using the `writeAt(filename, lineNo)` function of `fileUtils.h` header.
+
+- **Global arrays**: We have done this the same way as we have done for global variables. But the syntax is a little different. Follow the example below.
+
+- **Local variables**: Whenever a local variable is declared inside a function, we have PUSHed a dummy value to the stack. Then we just saved the offset of that stack address with respect to BP (bottom pointer referenced in the book [here](#evaluating-functions)) in the `IdInfo` of that id.
+
+- **Local Arrays**: Here we have followed the same technique as local variables but the stack is pushed "size of the array" times. Offset of the first element along with the size of the array is saved in the `IdInfo` of the array id. 
+- **Example**: 
+
+```c
+        int a, b[3];
+        int main() {
+            int c, d[3], e;
+        }
+```
+```asm
+        ...
+        .DATA
+            a DW ?
+            b DW 3 DUP(?)
+        .CODE
+        main PROC
+            PUSH AX         ;A garbage value pushed for c
+                            ;Offset is -2
+            PUSH AX 
+            PUSH AX        
+            PUSH AX         ;3 garbage values pushed for d[3]
+                            ;offset is -4
+            PUSH AX         ;A garbage value pushed for e
+                            ;offset is -10
+        main ENDP
+        MAIN END
+```
+
+#### Accessing variables:
+- **Global variables**: We just if it's a global variable or not. If yes then we just used the name of the variable.
+
+- **Global arrays**: We have to use the name of the array and the index of the array. See the example below.
+
+- **Local variables**: We have to use the offset of the stack address with respect to BP.
+
+- **Local Arrays**: We have to use the offset of the stack address with respect to BP and then add the array index times 2 with it.
+
+- **Example**: Continued from the previous example.
+```asm
+        a               ;global variable a is accessed
+        b[0]            ;global array b at index 0 is accessed
+        b[2]            ;global array b at index 1 is accessed
+
+        [BP + -2]       ;local variable d is accessed
+        [BP + -4]       ;local array d at index 0 is accessed
+        [BP + -8]       ;local array d at index 2 is accessed
+        [BP + -10]      ;local variable e is accessed
+```
 #### Conclusion
 - It requires a lot of push and pop instructions in this approach. So, sometimes the same value is pushed and popped consecutively. For that reason, an optimization is required. This is called peephole optimization. We have done it in the second pass (after all the expressions are evaluated).
 
-## Optimizing assembly code
+### Optimizing assembly code
