@@ -5,10 +5,10 @@
 This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
 
 ### Table of Contents
-- <a href="#Lexical-Analyser">Lexical Analyser</a>
-- <a href="#Syntax-Analyser">Syntax Analyser</a>
-- <a href="#Semantic-Analyser">Semantic Analyser</a>
-- <a href="#Code-Generator">Code Generator</a>
+ <a href="#lexical-analyser">Lexical Analyser</a>
+ <a href="#syntax-analyser">Syntax Analyser</a>
+ <a href="#semantic-analyser">Semantic Analyser</a>
+ <a href="#code-generator">Code Generator</a>
 
 ## Lexical Analyser
 
