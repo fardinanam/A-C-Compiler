@@ -197,7 +197,7 @@ Let't say we have a grammar like this:
         * found : nothing reduced (no rules matched yet)
         c found : F -> id reduced
 
-- So, at first only the production rules of `F` matched. So, we are going to push the `id` and `digit` tokens to the stack of 8086 code.
+- At first only the production rules of `F` matched. So, we are going to push the `id` and `digit` to the stack of 8086.
 
         
 ```asm
@@ -216,11 +216,11 @@ The stack will look like this now:
 - Now that all the lexemes are matched, the parser will match the production rules of `E` and `T` as follows:
 
 - As '2' and 'a' reduced to 'F' previously,
-now for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match the rule corresponding to '*'
+now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match the rule corresponding to '*'
 
         2 * c found : T -> T * F reduced
 
-- As this rule has been matched, we are going to `pop` the `id` tokens from the stack, evaluate the multiplication operation and push the result to the stack.
+- As this rule has been matched, we are going to `pop` the ID c and digit 2 from the stack, evaluate the multiplication operation and push the result to the stack.
 
 ```asm
         POP BX          ;this will pop c from the stack
@@ -267,6 +267,32 @@ now for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match 
         POP BX          ;this will pop d from the stack
 ```
 - The stack is empty again.
+- So the complete code for evaluating `d = a + 2 * c;` looks like this:
+
+```asm
+        PUSH d
+        PUSH a 
+        PUSH 2
+        PUSH c
+
+        POP BX          ;this will pop c from the stack
+        POP AX          ;this will pop 2 from the stack
+        MUL BX          ;this will multiply 2 with c and store the result in AX
+        PUSH AX         ;this will push the result of 2 * c to the stack
+
+        POP BX          ;this will pop 2*c from the stack
+        POP AX          ;this will pop a from the stack
+        ADD AX, BX      ;this will add a and 2*c and store the result in AX
+        PUSH AX         ;this will push the result of a+2*c  to the stack
+
+        POP BX          ;this will pop a+2*c from the stack
+        POP AX          ;this will pop the (useless) value of d from the stack
+        MOV d, BX       ;this will store the value of a+2*c in d
+        PUSH BX         ;this will push the value of d to the stack
+        
+        POP BX          ;this will pop d (useless) from the stack. This was pushed at the start of the expression.
+```
+- If there was no semicolon in the expression, then we would not pop out the last value of d. This helps in passing parameters to functions or evaluating if statements.
 
 #### Evaluating `for` loop is somewhat tricky:
 - Though the above algorithm works for every expressions used in the code, it requires a small trick to evaluate for loops. A for loop looks like this:
@@ -274,9 +300,9 @@ now for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match 
         expression -> FOR LPAREN expression_statement expression_statement expression RPAREN LCURL statements RCURL
         expression_statement -> expression SEMICOLON
 
-- Though we need the evaluated value of the second expression to check if the loop should continue or not. But the value of that expression is popped out of the stack because of the SEMICOLON `;`.
+- Though we need the evaluated value of the second expression to check if the loop should continue or not, the value of that expression is popped out of the stack because of the SEMICOLON `;`.
 
-- The solution that we have used is that we have taken a flag to check if the expression is in a for loop or not. If it is, then we don't need to pop the value of the expression. If it is not, then we can pop it out.
+- The solution is that, we have taken a flag to check if the expression is in a for loop or not. If it is, then we don't need to pop the value of the expression. If it is not, then we can pop it out.
 
 - Another problem in evaluating `for` loops is that we need to evaluate the third expression after the statements in the curly braces are executed. Here, we have done this by saving the line number of the starting of third expression and then inserting the codes corresponding the statements from that line. The following sudo code might help:
 
