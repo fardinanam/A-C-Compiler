@@ -4,11 +4,23 @@
 
 This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
 
-### Table of Contents
-- <a href="#lexical-analyser">Lexical Analyser</a>
-- <a href="#syntax-analyser">Syntax Analyser</a>
-- <a href="#semantic-analyser">Semantic Analyser</a>
-- <a href="#intermediate-code-generation">Intermediate Code Generation</a>
+## Table of Contents
+<div>
+<ul>
+        <li><a href="#lexical-analyser">Lexical Analyser</a></li>
+        <li><a href="#syntax-analyser">Syntax Analyser</a></li>
+        <li><a href="#semantic-analyser">Semantic Analyser</a></li>
+        <li><details><summary><a href="#intermediate-code-generation">Intermediate Code Generation</a></summary>
+        <ul>
+        <li><a href="#the-algorithm">The Algorithm</a></li>
+        <li><a href="#evaluating-for-loop-is-somewhat-tricky">Evaluating for loop is somewhat tricky</a></li>
+        <li><a href="#evaluating-functions">Evaluating functions</a></li>
+        <li><a href="#declaring-variables">Declaring variables</a></li>
+        <li><a href="#conclusion">Conclusion</a></li>
+        </ul></details>
+        </li>
+</ul>
+</div>
 
 ## Lexical Analyser
 
@@ -367,7 +379,7 @@ statements -> ... {
             PUSH AX         ;A garbage value pushed for e
                             ;offset is -10
         main ENDP
-        MAIN END
+        END MAIN
 ```
 
 #### Accessing variables:
