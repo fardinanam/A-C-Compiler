@@ -235,6 +235,10 @@ public:
         return temp;
     }
 
+    int getTotalIdsInCurrentFunction() {
+        return totalIdsInCurrentFunction;
+    }
+
     std::string getCurrentScopeID() {
         if(currentScopeTable != NULL)
             return currentScopeTable->getId();

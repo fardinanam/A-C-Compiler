@@ -116,12 +116,15 @@
                 if(arraySize == 0) {
                     writeInCodeSegment("\t\tPUSH BX    ;line no " + to_string(lineCount) + ": " + idName + " declared");
                 } else {
-                    string str = "\t\t;line no " + to_string(lineCount) + ": declaring array " + idName + " with size " + to_string(arraySize);
-                    for(int i=0; i<arraySize; i++) {
-                        str += "\n\t\tPUSH BX";
-                    }
-                    str += "\n\t\t;array declared";
-                    writeInCodeSegment(str);
+                    // totalIdsInCurrent function has already increased by arraysize during calling insert
+                    int arrayOffsetEnd = symbolTable.getTotalIdsInCurrentFunction() * 2;
+                    // string code = "\t\t;line no " + to_string(lineCount) + ": 
+                    // for(int i=0; i<arraySize; i++) {
+                    //     code += "\n\t\tPUSH BX";
+                    // }
+                    string code = "\t\tMOV SP, [BP+-" + to_string(arrayOffsetEnd) + "]\t;array " + idName + "[" + to_string(arraySize) + "] declared";
+
+                    writeInCodeSegment(code);
                 }
 
                 // cout << idName << " offset = " << ((IdInfo*)idInfo)->getStackOffset() << endl;
@@ -1850,7 +1853,7 @@ void optimize() {
         rename("temp_optimized_code.asm", "optimized_code.asm");
     }
 
-    cout << "optimization completed. " << count << " iterations" << endl;
+    cout << "optimization completed after " << count << " passes" << endl;
 }
 
 int main(int argc, char* argv[]) {
