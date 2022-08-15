@@ -21,6 +21,7 @@ This is a C compiler that performs some error checking with the help of Flex (le
         <li><a href="#declaring-variables">Declaring variables</a></li>
         <li><a href="#accessing-variables">Accessing variables</a></li>
         <li><a href="#conclusion">Conclusion</a></li>
+        <li><a href="#optimizing-assembly-code">Optimizing assembly code</a></li>
         </ul></details>
         </li>
 </ul>
@@ -207,11 +208,12 @@ After the syntax analyser and the semantic analyser confirms that the source pro
 #### Table of Contents:
 
 - [The Algorithm](#the-algorithm)
-- [Evaluating `for` loop is somewhat tricky](#evaluating-for-loop-is-somewhat-tricky)
+- [Evaluating `for` loop](#evaluating-for-loop-is-somewhat-tricky)
 - [Evaluating `functions`](#evaluating-functions)
 - [Declaring variables](#declaring-variables)
 - [Accessing variables](#accessing-variables)
 - [Conclusion](#conclusion)
+- [Optimization](#optimizing-assembly-code)
 
 #### The Algorithm:
 
@@ -497,4 +499,4 @@ As the above algorithm can generate some redundant instructions, we have to opti
                 ;JE L1                                  ;JE L1
                 L1:                                     L1:
         ```
-
+<p align="right"><a href="#top">back to top</a></p>
