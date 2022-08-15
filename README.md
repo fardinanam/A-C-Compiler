@@ -1,3 +1,5 @@
+<div id="top"></div>
+
 # A C Compiler
 
 ## Introduction
@@ -5,6 +7,7 @@
 This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
 
 ## Table of Contents
+
 <div>
 <ul>
         <li><a href="#lexical-analyser">Lexical Analyser</a></li>
@@ -16,6 +19,7 @@ This is a C compiler that performs some error checking with the help of Flex (le
         <li><a href="#evaluating-for-loop-is-somewhat-tricky">Evaluating for loop is somewhat tricky</a></li>
         <li><a href="#evaluating-functions">Evaluating functions</a></li>
         <li><a href="#declaring-variables">Declaring variables</a></li>
+        <li><a href="#accessing-variables">Accessing variables</a></li>
         <li><a href="#conclusion">Conclusion</a></li>
         </ul></details>
         </li>
@@ -83,15 +87,15 @@ This is a C compiler that performs some error checking with the help of Flex (le
 
         STRING
 
-
 - **Whitespaces and comments are identified by the lexer but these are not passed to the parser.**
 - **Lexer also counts the line numbers when it finds a newline.**
 
-*Tokens with * are passed as SymbolInfo objects to the parser. The SymbolInfo contains <matched lexeme, returned token> of the lexeme* 
+_Tokens with _ are passed as SymbolInfo objects to the parser. The SymbolInfo contains <matched lexeme, returned token> of the lexeme\*
 
 ### Lexical Errors:
 
 Detect lexical errors in the source program and reports it along with corresponding line no. Detects the following type of errors:
+
 - Too many decimal point error for character sequence like `1.2.345`
 - Ill formed number such as `1E10.7`
 - Invalid Suffix on numeric constant or invalid prefix on identifier for character sequence like `12abcd`
@@ -103,23 +107,31 @@ Detect lexical errors in the source program and reports it along with correspond
 - Unrecognized character (Any character that does not match any defined regular expressions)
 - **Also counts the total number of errors.**
 
+<p align="right"><a href="#top">back to top</a></p>
+
 ## Syntax Analyser
 
 ### Our chosen subset of the C language has the following characteristics:
+
 - There can be multiple functions. No two functions will have the same name. A function needs
-to be defined or declared before it is called. Also, a function and a global variable cannot have the same symbol.
+  to be defined or declared before it is called. Also, a function and a global variable cannot have the same symbol.
 - There will be no pre-processing directives like `#include` or `#define`.
 - Variables can be declared at suitable places inside a function. Variables can also be declared in
-the global scope.
+  the global scope.
 - Precedence and associativity rules are as per standard. Although we will ignore consecutive logical operators or consecutive
-relational operators like, `a && b && c`, `a < b < c`.
+  relational operators like, `a && b && c`, `a < b < c`.
 - No `break` statement and `switch-case` statement will be used.
 
 ### Error recovery:
+
 Some common syntax errors are handled and recovered so that the parser does not stop parsing.
 
+<p align="right"><a href="#top">back to top</a></p>
+
 ## Semantic Analyser
+
 ### Following semantics are checked in the compiler:
+
 <div>
 <details>
 <summary>
@@ -167,22 +179,25 @@ Some common syntax errors are handled and recovered so that the parser does not 
 </details>
 
 ### Non terminal data types used:
-Used to check the consistancy of different terms and expressions with variable types.
-- Trivial data types: 
 
-        CONST_INT  
+Used to check the consistancy of different terms and expressions with variable types.
+
+- Trivial data types:
+
+        CONST_INT
         CONST_FLOAT
         CONST_CHAR
         CONST_INT*
         CONST_FLOAT*
-        CONST_CHAR* 
+        CONST_CHAR*
 
 - Other data types:
-        
         UNDEC (If an ID is found which has never been declared)
         ERROR (If an expression contains error/s)
         FUNC_VOID (If the return type of a function is void. This is only used in function calls to check if a void function is used in an expression or not)
         VARIABLE (Any other type of non terminals.)
+
+<p align="right"><a href="#top">back to top</a></p>
         
 ## Intermediate Code Generation
 After the syntax analyser and the semantic analyser confirms that the source program is correct, the compiler generates the intermediate code.  Ideally a three address code is generated in real life compilers. But we have used `8086 Assembly Language` as our intermediate code so that we can run it in `emu 8086` and justify that our compilation is correct.
@@ -190,25 +205,27 @@ After the syntax analyser and the semantic analyser confirms that the source pro
 ### On the fly intermediate code generation strategy:
 
 #### Table of Contents:
+
 - [The Algorithm](#the-algorithm)
 - [Evaluating `for` loop is somewhat tricky](#evaluating-for-loop-is-somewhat-tricky)
 - [Evaluating `functions`](#evaluating-functions)
 - [Declaring variables](#declaring-variables)
+- [Accessing variables](#accessing-variables)
 - [Conclusion](#conclusion)
 
-
 #### The Algorithm:
+
 We have generated the intermediate code on the fly. Which means that, instead of using any data structure and passing the whole code one after another to the production rules of the grammar, we have generated the intermediate code as soon as we match a rule and write it in the `code.asm` file. To do that, we have to use the `PUSH` and `POP` instructions in the assembly code which utilize the stack.
 
 - Let's understand the algorithm with an example.
-Let's say we have a grammar like this: 
+  Let's say we have a grammar like this:
 
-        E -> E + T
-        E -> T
-        T -> T * F
-        T -> F
-        F -> id
-        F -> digit
+          E -> E + T
+          E -> T
+          T -> T * F
+          T -> F
+          F -> id
+          F -> digit
 
 - While bison evaluates any string like `a + 2 * c` the lexer will first read the string and generate the tokens like `id, +, digit, *, id`. So the order of the matched rules will be as follows:
 
@@ -220,12 +237,12 @@ Let's say we have a grammar like this:
 
 - At first only the production rules of `F` matched. So, we are going to push the `id` and `digit` to the stack of 8086.
 
-        
 ```asm
-        PUSH a 
+        PUSH a
         PUSH 2
         PUSH c
 ```
+
 The stack will look like this now:
 
         SP -> c
@@ -237,9 +254,9 @@ The stack will look like this now:
 - Now that all the lexemes are matched, the parser will match the production rules of `E` and `T` as follows:
 
 - As '2' and 'a' reduced to 'F' previously,
-now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match the rule corresponding to '*'
+  now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match the rule corresponding to '\*'
 
-        2 * c found : T -> T * F reduced
+          2 * c found : T -> T * F reduced
 
 - As this rule has been matched, we are going to `pop` the ID c and digit 2 from the stack, evaluate the multiplication operation and push the result to the stack.
 
@@ -267,17 +284,19 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
 - `Note 1`: After the whole expression is evaluated, the value of the expression is already pushed in the stack. So, we can use it in our next expression if needed or we can just pop it. For example, if we had `d = a + 2 * c`, we could use the value of `a + 2 * c` in `d` by popping it out. The stack will look like this:
 
         SP -> a + 2*c
-              d     
-        
+              d
+
         * here 'd' was pushed because it matched F -> id first. But this value of 'd' is useless. So, we can pop it out.
 
 - Here is the required asm code to evaluate the expression
+
 ```asm
         POP BX          ;this will pop a+2*c from the stack
         POP AX          ;this will pop the (useless) value of d from the stack
         MOV d, BX       ;this will store the value of a+2*c in d
         PUSH d         ;this will push the value of d to the stack
 ```
+
 - The stack will look like this now:
 
         SP -> d
@@ -287,12 +306,13 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
 ```asm
         POP BX          ;this will pop d from the stack
 ```
+
 - The stack is empty again.
 - So the complete code for evaluating `d = a + 2 * c;` looks like this:
 
 ```asm
         PUSH d
-        PUSH a 
+        PUSH a
         PUSH 2
         PUSH c
 
@@ -313,9 +333,13 @@ now, for the F of '2', ` T -> F` is reduced. Now, it's finally the time to match
 
         POP BX          ;this will pop d (useless) from the stack. This was pushed at the start of the expression.
 ```
+
 - If there was no semicolon in the expression, then we would not pop out the last value of d. This helps in passing parameters to functions or evaluating if statements.
 
+<p align="right"><a href="#top">back to top</a></p>
+
 #### Evaluating `for` loop is somewhat tricky:
+
 - Though the above algorithm works for every expression used in the code, it requires a small trick to evaluate for loops. A for loop's grammar looks like this:
 
 ```bison
@@ -326,12 +350,12 @@ expression_statement -> expression SEMICOLON
 - The problem in evaluating `for` loops is that we need to evaluate the third expression after the statements in the curly braces are executed. Here, we have done this by saving the line number of the starting of third expression and then inserting the codes corresponding the statements from that line. The following pseudo code might help:
 
 ```pseudo
-expression -> FOR LPAREN expression_statement expression_statement 
-        { 
+expression -> FOR LPAREN expression_statement expression_statement
+        {
                 isInForLoop = true;
-                lineNo = currentLineNo; // Saves the line number before third expression 
-        } 
-        expression RPAREN LCURL statements RCURL 
+                lineNo = currentLineNo; // Saves the line number before third expression
+        }
+        expression RPAREN LCURL statements RCURL
 
 statements -> ... {
                 if(isInForLoop) {
@@ -345,17 +369,21 @@ statements -> ... {
 ```
 
 #### Evaluating `functions`:
+
 - Please read pages 303-305 (14.5.3 Using the stack for procedures) of the book [Assembly Language Programming and Organization of the IBM PC by Ytha Yu, Charles Marut](https://drive.google.com/file/d/1Gt-PvcimLN0oiuXbkhZ6KVM2X6POcqcM/view?usp=sharing)
 
+<p align="right"><a href="#top">back to top</a></p>
+
 #### Declaring variables:
+
 - **Global variables**: We have inserted the global variables in the data segment. This is done by saving the end line number of the data segment in a variable and then inserting the code corresponding to the global variables using the `writeAt(filename, lineNo)` function of `fileUtils.h` header.
 
 - **Global arrays**: We have done this the same way as we have done for global variables. But the syntax is a little different. Follow the example below.
 
 - **Local variables**: Whenever a local variable is declared inside a function, we have PUSHed a dummy value to the stack. Then we just saved the offset of that stack address with respect to BP (bottom pointer referenced in the book [here](#evaluating-functions)) in the `IdInfo` of that id.
 
-- **Local Arrays**: Here we have followed the same technique as local variables but the stack is pushed "size of the array" times. Offset of the first element along with the size of the array is saved in the `IdInfo` of the array id. 
-- **Example**: 
+- **Local Arrays**: Here we have followed the same technique as local variables but the stack is pushed "size of the array" times. Offset of the first element along with the size of the array is saved in the `IdInfo` of the array id.
+- **Example**:
 
 ```c
         int a, b[3];
@@ -363,6 +391,7 @@ statements -> ... {
             int c, d[3], e;
         }
 ```
+
 ```asm
         ...
         .DATA
@@ -372,8 +401,8 @@ statements -> ... {
         main PROC
             PUSH AX         ;A garbage value pushed for c
                             ;Offset is -2
-            PUSH AX 
-            PUSH AX        
+            PUSH AX
+            PUSH AX
             PUSH AX         ;3 garbage values pushed for d[3]
                             ;offset is -4
             PUSH AX         ;A garbage value pushed for e
@@ -383,7 +412,8 @@ statements -> ... {
 ```
 
 #### Accessing variables:
-- **Global variables**: We just if it's a global variable or not. If yes then we just used the name of the variable.
+
+- **Global variables**: We just check if it's a global variable or not. If yes then we just used the name of the variable.
 
 - **Global arrays**: We have to use the name of the array and the index of the array. See the example below.
 
@@ -392,17 +422,79 @@ statements -> ... {
 - **Local Arrays**: We have to use the offset of the stack address with respect to BP and then add the array index times 2 with it.
 
 - **Example**: Continued from the previous example.
+
 ```asm
         a               ;global variable a is accessed
         b[0]            ;global array b at index 0 is accessed
         b[2]            ;global array b at index 1 is accessed
 
-        [BP + -2]       ;local variable d is accessed
+        [BP + -2]       ;local variable c is accessed
         [BP + -4]       ;local array d at index 0 is accessed
         [BP + -8]       ;local array d at index 2 is accessed
         [BP + -10]      ;local variable e is accessed
 ```
+
 #### Conclusion
+
 - It requires a lot of push and pop instructions in this approach. So, sometimes the same value is pushed and popped consecutively. For that reason, an optimization is required. This is called peephole optimization. We have done it in the second pass (after all the expressions are evaluated).
 
+<p align="right"><a href="#top">back to top</a></p>
+
 ### Optimizing assembly code
+
+As the above algorithm can generate some redundant instructions, we have to optimize the code. The following optimizations are done:
+
+* **Remove redundant push and pop instructions.**
+    * If the first instruction is push and the second is pop and those contains the same address or register then we can remove both the instructions. For exammple,
+        ```asm
+                *code.asm                               *optimized_code.asm
+                PUSH AX                 ->              ;PUSH AX
+                POP AX                                  ;POP AX
+        ```
+    * If the first is push and the second is a pop containing a register or an address then we can replace the two instructions with one MOV instruction. For example,
+        ```asm
+                *code.asm                               *optimized_code.asm
+                PUSH [BP + -2]          ->              MOV AX, [BP + -2]
+                POP AX
+        ```
+* **Remove redundant move instructions**
+    * If a move instruction has the same source and destination then we can remove the instruction. For example,
+        ```asm
+                *code.asm                               *optimized_code.asm
+                MOV AX, AX              ->              ;MOV AX, AX
+        ```
+    * If consecutive two instructions are move and the first instruction contains the same register or address as the second instruction then we can remove the first instruction. For example,
+        ```asm
+                *code.asm                              *optimized_code.asm
+                MOV AX, BX              ->             ;MOV AX, BX
+                MOV AX, CX                             MOV AX, CX
+        ```
+    * If consecutive two registers are move and the source of the first instruction is the destination of the second instruction and the source of the second one is the destination of the first then we can remove the second instruction. For example,
+        ```asm
+                *code.asm                              *optimized_code.asm
+                MOV AX, BX              ->             MOV AX, BX
+                MOV BX, AX                             ;MOV BX, AX
+        ```
+* **Remove jump instructions followed by a label that is used by that jump**
+    ```asm
+                *code.asm                              *optimized_code.asm
+                CMP AX, BX              ->              CMP AX, BX
+                JE L1                                   ;JE L1
+                L1:                                     L1:
+    ```
+* **Remove compare instructions that are not followed by any jump instruction**
+    * This will not occur in the first pass of optimization. But it will occur in the next passes if the jump instructions that followed the compare instructions were removed in a previous. For example, in the first pass,
+        ```asm
+                *code.asm                              *optimized_code.asm
+                CMP AX, BX              ->              CMP AX, BX
+                JE L1                                   ;JE L1
+                L1:                                     L1:
+        ```
+    * So now the compare instruction is useless.
+        ```asm
+                *code.asm                              *optimized_code.asm
+                CMP AX, BX              ->              ;CMP AX, BX
+                ;JE L1                                  ;JE L1
+                L1:                                     L1:
+        ```
+

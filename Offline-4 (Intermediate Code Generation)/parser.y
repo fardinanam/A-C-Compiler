@@ -8,6 +8,7 @@
     #include<fstream>
     #include "symbolTable.h"
     #include "fileUtils.h"
+    #include "optimizer.h"
     
     using namespace std;
     
@@ -994,7 +995,7 @@ statement
         string code = "\n";
 
         if(idInfo->getStackOffset() != -1)
-            code += "\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t;passing " + id + " to PRINT_INTEGER\n";
+            code += "\t\tPUSH [BP+" + to_string(idInfo->getStackOffset()) + "]\t;passing " + id + " to PRINT_INTEGER\n";
         else
             code += "\t\tPUSH " + id + "\t;passing " + id + " to PRINT_INTEGER\n";
 
@@ -1117,7 +1118,7 @@ variable
             if(idInfo->getStackOffset() == -1) {
                 writeInCodeSegment("\t\tPUSH " + id + "\t;expression evaluation");
             } else {
-                writeInCodeSegment("\t\tPUSH [BP + " + to_string(idInfo->getStackOffset()) + "]\t; " + idInfo->getName() + " pushed");
+                writeInCodeSegment("\t\tPUSH [BP+" + to_string(idInfo->getStackOffset()) + "]\t; " + idInfo->getName() + " pushed");
             }
         }
         
@@ -1229,7 +1230,7 @@ expression
             if(arraySize > 0)
                 code += "\t\tMOV [BX], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BX]\n";
             else  
-                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
+                code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
         }
 
         writeInCodeSegment(code);        
@@ -1646,7 +1647,7 @@ factor
             if(arraySize > 0) 
                 code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
             else
-                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+                code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
         } else {
             if(arraySize > 0)
                 code += "\t\tMOV " + varName + "[BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
@@ -1688,7 +1689,7 @@ factor
             if(arraySize > 0) 
                 code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
             else
-                code += "\t\tMOV [BP + " + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+                code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
         } else {
             if(arraySize > 0)
                 code += "\t\tMOV " + varName + "[BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
@@ -1741,7 +1742,7 @@ void writeProcPrintln() {
     "\tPRINT_INTEGER PROC NEAR\n\
         PUSH BP             ;Saving BP\n\
         MOV BP, SP          ;BP points to the top of the stack\n\
-        MOV BX, [BP + 4]    ;The number to be printed\n\
+        MOV BX, [BP+4]    ;The number to be printed\n\
         ;if(BX < -1) then the number is positive\n\
         CMP BX, 0\n\
         JGE POSITIVE\n\
@@ -1833,6 +1834,25 @@ void terminateAssemblyCode() {
     codeFile.close();
 }
 
+void optimize() {
+    bool isOptimized = false;
+    int count = 0;
+    if(errorCount == 0) {
+        cout << "Optimizing..." << endl;
+        isOptimized = optimizeAsmCode("code.asm", "temp_optimized_code.asm");
+        rename("temp_optimized_code.asm", "optimized_code.asm");
+    }
+
+    while(isOptimized) {
+        count++;
+        isOptimized = optimizeAsmCode("optimized_code.asm", "temp_optimized_code.asm");
+        remove("optimized_code.asm");
+        rename("temp_optimized_code.asm", "optimized_code.asm");
+    }
+
+    cout << "optimization completed. " << count << " iterations" << endl;
+}
+
 int main(int argc, char* argv[]) {
     if(argc != 2) {
         cout << "Please provide input file name and try again\n";
@@ -1856,6 +1876,8 @@ int main(int argc, char* argv[]) {
     yyparse();
 
     if(errorCount > 0) {
+        cout << "Compilation failed\n";
+        cout << errorCount << " errors found\n";
         ofstream codeFile("code.asm");
         codeFile.close();
     } else {
@@ -1865,6 +1887,9 @@ int main(int argc, char* argv[]) {
     errorFile.close();
     logFile.close();
     fclose(fin);
+
+
+    optimize();
     
     return 0;
 }
