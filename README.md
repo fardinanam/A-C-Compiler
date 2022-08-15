@@ -4,7 +4,7 @@
 
 ## Introduction
 
-This is a C compiler that performs some error checking with the help of Flex (lexer) and Bison (YACC parser) and then it converts the C code to 8086 assembly language code. It is not a complete c compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
+This is a C compiler that performs some lexical, syntax and semantic error checking with the help of Flex (lexer) and Bison (YACC parser) and then converts the C code to 8086 assembly language code. It is not a complete C compiler but covers most of the basic features of the language. For more details, see <a href="#syntax-analyser">here</a>.
 
 ## Table of Contents
 
@@ -122,6 +122,7 @@ Detect lexical errors in the source program and reports it along with correspond
 - Precedence and associativity rules are as per standard. Although we will ignore consecutive logical operators or consecutive
   relational operators like, `a && b && c`, `a < b < c`.
 - No `break` statement and `switch-case` statement will be used.
+- `println(int n)` is used instead of `printf(“%d\n”, n)` to simplify the analysis.
 
 ### Error recovery:
 
@@ -208,8 +209,8 @@ After the syntax analyser and the semantic analyser confirms that the source pro
 #### Table of Contents:
 
 - [The Algorithm](#the-algorithm)
-- [Evaluating `for` loop](#evaluating-for-loop-is-somewhat-tricky)
-- [Evaluating `functions`](#evaluating-functions)
+- [Evaluating for loop](#evaluating-for-loop-is-somewhat-tricky)
+- [Evaluating functions](#evaluating-functions)
 - [Declaring variables](#declaring-variables)
 - [Accessing variables](#accessing-variables)
 - [Conclusion](#conclusion)
