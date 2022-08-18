@@ -331,9 +331,9 @@
             return;
         }
 
-        string code = "\t\tMOV AX, @DATA\n\t\tMOV DS, AX";
+        string code = "\t\tMOV AX, @DATA\n\t\tMOV DS, AX\n\t\tMOV BP, SP";
         write("code.asm", code, true);
-        increaseCodeSegmentEndLine(2);
+        increaseCodeSegmentEndLine(3);
     }
 
     void declareProcedure(string id) {

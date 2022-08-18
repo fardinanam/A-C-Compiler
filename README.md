@@ -13,7 +13,7 @@ This is a C compiler that performs some lexical, syntax and semantic error check
         <li><a href="#lexical-analyser">Lexical Analyser</a></li>
         <li><a href="#syntax-analyser">Syntax Analyser</a></li>
         <li><a href="#semantic-analyser">Semantic Analyser</a></li>
-        <li><details><summary><a href="#intermediate-code-generation">Intermediate Code Generation</a></summary>
+        <li><a href="#intermediate-code-generation">Intermediate Code Generation</a>
         <ul>
         <li><a href="#the-algorithm">The Algorithm</a></li>
         <li><a href="#evaluating-for-loop-is-somewhat-tricky">Evaluating for loop is somewhat tricky</a></li>
@@ -22,7 +22,7 @@ This is a C compiler that performs some lexical, syntax and semantic error check
         <li><a href="#accessing-variables">Accessing variables</a></li>
         <li><a href="#conclusion">Conclusion</a></li>
         <li><a href="#optimizing-assembly-code">Optimizing assembly code</a></li>
-        </ul></details>
+        </ul>
         </li>
 </ul>
 </div>
@@ -91,7 +91,7 @@ This is a C compiler that performs some lexical, syntax and semantic error check
 - **Whitespaces and comments are identified by the lexer but these are not passed to the parser.**
 - **Lexer also counts the line numbers when it finds a newline.**
 
-_Tokens with _ are passed as SymbolInfo objects to the parser. The SymbolInfo contains <matched lexeme, returned token> of the lexeme\*
+**Tokens with \* are passed as SymbolInfo objects to the parser. The SymbolInfo contains <matched lexeme, returned token> of the lexeme**
 
 ### Lexical Errors:
 
@@ -126,7 +126,7 @@ Detect lexical errors in the source program and reports it along with correspond
 
 ### Error recovery:
 
-Some common syntax errors are handled and recovered so that the parser does not stop parsing.
+Some common syntax errors are handled and recovered so that the parser does not stop parsing immediately after recongnizing an error.
 
 <p align="right"><a href="#top">back to top</a></p>
 
@@ -472,7 +472,7 @@ As the above algorithm can generate some redundant instructions, we have to opti
                 MOV AX, BX              ->             ;MOV AX, BX
                 MOV AX, CX                             MOV AX, CX
         ```
-    * If consecutive two registers are move and the source of the first instruction is the destination of the second instruction and the source of the second one is the destination of the first then we can remove the second instruction. For example,
+    * If consecutive two instructions are move and the source of the first instruction is the destination of the second instruction and the source of the second one is the destination of the first then we can remove the second instruction. For example,
         ```asm
                 *code.asm                              *optimized_code.asm
                 MOV AX, BX              ->             MOV AX, BX
@@ -486,14 +486,14 @@ As the above algorithm can generate some redundant instructions, we have to opti
                 L1:                                     L1:
     ```
 * **Remove compare instructions that are not followed by any jump instruction**
-    * This will not occur in the first pass of optimization. But it will occur in the next passes if the jump instructions that followed the compare instructions were removed in a previous. For example, in the first pass,
+    * It is not likely to occur in the first pass of optimization. But it might occur in the next passes if the jump instructions that followed the compare instructions were removed in a previous pass. For example, in the first pass,
         ```asm
                 *code.asm                              *optimized_code.asm
                 CMP AX, BX              ->              CMP AX, BX
                 JE L1                                   ;JE L1
                 L1:                                     L1:
         ```
-    * So now the compare instruction is useless.
+    * Now, the compare instruction is useless.
         ```asm
                 *code.asm                              *optimized_code.asm
                 CMP AX, BX              ->              ;CMP AX, BX
