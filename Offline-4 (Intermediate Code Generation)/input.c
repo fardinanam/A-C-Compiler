@@ -1,6 +1,7 @@
-int a[2],b,c;
+
 int main()
-{
+{   
+    int b, a[5],c;
     a[0] = 1;
     b = a[0]++;
     c = a[0];

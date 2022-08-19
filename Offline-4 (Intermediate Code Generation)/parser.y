@@ -122,7 +122,7 @@
                     // for(int i=0; i<arraySize; i++) {
                     //     code += "\n\t\tPUSH BX";
                     // }
-                    string code = "\t\tSUB SP, " + to_string(arrayOffsetEnd) + "\t;array " + idName + "[" + to_string(arraySize) + "] declared";
+                    string code = "\t\tSUB SP, " + to_string(arraySize * 2) + "\t;array " + idName + "[" + to_string(arraySize) + "] declared";
 
                     writeInCodeSegment(code);
                 }
