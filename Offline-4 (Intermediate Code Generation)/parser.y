@@ -122,7 +122,7 @@
                     // for(int i=0; i<arraySize; i++) {
                     //     code += "\n\t\tPUSH BX";
                     // }
-                    string code = "\t\tMOV SP, [BP+-" + to_string(arrayOffsetEnd) + "]\t;array " + idName + "[" + to_string(arraySize) + "] declared";
+                    string code = "\t\tSUB SP, " + to_string(arrayOffsetEnd) + "\t;array " + idName + "[" + to_string(arraySize) + "] declared";
 
                     writeInCodeSegment(code);
                 }
@@ -1159,14 +1159,21 @@ variable
                 // get the value of the id[index]
                 string code = "\t\t;line no " + to_string(lineCount) + ": getting the value of " + id + "[" + $3->getName() + "]\n";
                 code += "\t\tPOP BX\t;saving the index of the array in BX\n";
-                code += "\t\tSHL BX, 1\t;multiplying index by 2 to match the size of word\n";
+                code += "\t\tSHL BX, 1\t;multiplying index by 2 to match the size of a word\n";
+
+                // if stackOffset != -1 then it is a local array
                 if(stackOffset != -1) {
                     if(stackOffset < 0)
                         code += "\t\tNEG BX\t;offset is negative\n";
                     code += "\t\tADD BX, " + to_string(stackOffset) + "\t;adding the offset of the array to get the offset of array element\n";
-                    code += "\t\tADD BX, BP\t;adding BP to BX to get the address of the array\n";
-                    code += "\t\tMOV AX, [BX]\t;getting the value of the array at index BX\n";
-                } else {
+                    code += "\t\tPUSH BP\t;saving BP\n";
+                    code += "\t\tADD BP, BX\t;adding BX to BP to get the address of the array\n";
+                    code += "\t\tMOV BX, BP\t;saving the address of the array in BX\n";
+                    code += "\t\tMOV AX, [BP]\t;getting the value of the array at index BP\n";
+                    code += "\t\tPOP BP\t;restoring BP\n";
+                } 
+                // else stack offset is -1. So it is a global array
+                else {
                     code += "\t\tMOV AX, " + id + "[BX]\t;getting the value of the array at index BX\n";
                 }
                 
@@ -1224,14 +1231,22 @@ expression
         if(arraySize > 0)
             code += "\t\tPOP BX\t;index of the array element popped\n";
 
+        // if stackOffset == -1 then it is a global array
         if(idInfo->getStackOffset() == -1) {
-            if(arraySize > 0)
+            if(arraySize > 0) {
                 code += "\t\tMOV " + lName + "[BX], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BX]\n";
+            }
             else
                 code += "\t\tMOV " + $1->getName() + ", AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
-        } else {
-            if(arraySize > 0)
-                code += "\t\tMOV [BX], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BX]\n";
+        }
+        // if stackOffset != -1 then it is a local array 
+        else {
+            if(arraySize > 0) {
+                code += "\t\tPUSH BP\t;saving BP\n";
+                code += "\t\tMOV BP, BX\t;setting BP to BX\n";
+                code += "\t\tMOV [BP], AX\t;assigning the value of " + $3->getName() + " to " + lName + "[BP]\n";
+                code += "\t\tPOP BP\t;restoring BP\n";
+            }
             else  
                 code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;" + "assigned " + $3->getName() + " to " + $1->getName();
         }
@@ -1633,7 +1648,12 @@ factor
         int arraySize = idInfo->getArraySize();
         if(arraySize > 0) {
             code += "\t\tPOP BX\t;popped array index address\n";
-            code += "\t\tMOV AX, [BX]\t;setting AX to the value of " + varName + "\n";
+            if(idInfo->getStackOffset() != -1) {
+                code += "\t\tPUSH BP\t;saved BP to use BP to access the array element\n";
+                code += "\t\tMOV BP, BX\t;set BP to the array index\n";
+                code += "\t\tMOV AX, [BP]\t;setting AX to the value of " + varName + "\n";
+            } else
+                code += "\t\tMOV AX, [BX]\t;setting AX to the value of " + varName + "\n";
         }
         else {
             code += "\t\tPOP AX\t;setting AX to the value of " + varName + "\n";
@@ -1647,9 +1667,10 @@ factor
             code += "\t\tDEC AX\t;decrementing " + varName + "\n";
         
         if(idInfo->getStackOffset() != -1) {
-            if(arraySize > 0) 
-                code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
-            else
+            if(arraySize > 0) {
+                code += "\t\tMOV [BP], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+                code += "\t\tPOP BP\t;restoring BP\n";
+            } else
                 code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
         } else {
             if(arraySize > 0)
@@ -1678,27 +1699,41 @@ factor
         int arraySize = idInfo->getArraySize();
         string code = "\t\t;line no " + to_string(lineCount) + ": prefix " + incopText + " of " + varName + "\n";
 
-        if(arraySize > 0)
+        if(arraySize > 0) {
             code += "\t\tPOP BX\t;popped array index address\n";
-        code += "\t\tPOP AX\t;popped " + varName + "\n";
-
+            code += "\t\tPOP AX\t;popped " + varName + "\n";
+        } else {
+            code += "\t\tPOP AX\t;popped " + varName + "\n";
+        }
+        
         if(incopVal == "++")
             code += "\t\tINC AX\t;incrementing " + varName + "\n";
         else
             code += "\t\tDEC AX\t;decrementing " + varName + "\n";
+
         code += "\t\tPUSH AX\t;pushed " + varName + "\n";
 
         if(idInfo->getStackOffset() != -1) {
-            if(arraySize > 0) 
-                code += "\t\tMOV [BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
-            else
+            if(arraySize > 0) {
+                // it's a local array
+                code += "\t\tPUSH BP\t;saved BP to use BP to access the array element\n";
+                code += "\t\tMOV BP, BX\t;set BP to the array index\n";
+                code += "\t\tMOV [BP], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+                code += "\t\tPOP BP\t;restoring BP\n";
+            }
+            else {
+                // it's a local variable
                 code += "\t\tMOV [BP+" + to_string(idInfo->getStackOffset()) + "], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
+            }
         } else {
+            // it's a global variable
             if(arraySize > 0)
                 code += "\t\tMOV " + varName + "[BX], AX\t;saving the " + incopText + "ed value of " + varName + "\n";
             else
                 code += "\t\tMOV " + varName + ", AX\t;saving the " + incopText + "ed value of " + varName + "\n";
         }
+
+
 
         writeInCodeSegment(code);
 
