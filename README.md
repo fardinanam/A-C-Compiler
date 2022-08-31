@@ -386,6 +386,8 @@ statements -> ... {
 - **Local variables**: Whenever a local variable is declared inside a function, we have PUSHed a dummy value to the stack. Then we just saved the offset of that stack address with respect to BP (bottom pointer referenced in the book [here](#evaluating-functions)) in the `IdInfo` of that id.
 
 - **Local Arrays**: Here we have followed the same technique as local variables but the stack is pushed "size of the array" times. Offset of the first element along with the size of the array is saved in the `IdInfo` of the array id.
+        
+    - `Note`: A better approach is to subtract the byte size of the array from SP. It will just move the SP at the end of the array.
 - **Example**:
 
 ```c
@@ -404,10 +406,13 @@ statements -> ... {
         main PROC
             PUSH AX         ;A garbage value pushed for c
                             ;Offset is -2
-            PUSH AX
-            PUSH AX
-            PUSH AX         ;3 garbage values pushed for d[3]
+            ;PUSH AX
+            ;PUSH AX
+            ;PUSH AX        ;3 garbage values pushed for d[3]
                             ;offset is -4
+            ;better way of allocating space for an array
+            SUB SP, 6       ;SP is moved to the end of d[3]
+
             PUSH AX         ;A garbage value pushed for e
                             ;offset is -10
         main ENDP
